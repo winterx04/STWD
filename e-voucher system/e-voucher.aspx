@@ -13,7 +13,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.09.12.15';
+  window.__EVOUCHER_VERSION__ = '2026.09.13.11';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -203,7 +203,7 @@
   .tracker-total .stat-value{font-size:18px;font-weight:700;color:var(--navy);margin-top:2px;}
 
   .content{flex:1;padding:24px 28px 60px;}
-  .view-wrap{max-width:900px;margin:0 auto;}
+  .view-wrap{max-width:1180px;margin:0 auto;}
 
   @media (max-width:960px){
     .submit-layout{flex-direction:column;align-items:stretch;}
@@ -485,6 +485,88 @@
 
   .btn-sm{padding:6px 14px;font-size:12.5px;}
 
+  /* ---------- View Requests: stat cards, section headers, modernised table ---------- */
+  .stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;}
+  @media (max-width:680px){.stats-row{grid-template-columns:1fr;}}
+  .stat-card{
+    background:var(--white);border:1px solid var(--border);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:18px 20px;display:flex;align-items:center;gap:14px;
+  }
+  .stat-card .stat-icon{
+    width:46px;height:46px;border-radius:12px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;font-size:18px;
+  }
+  .stat-card.pending .stat-icon{background:var(--primary-light);color:var(--primary-dark);}
+  .stat-card.approved .stat-icon{background:#e3f5ea;color:var(--success);}
+  .stat-card.rejected .stat-icon{background:var(--danger-bg);color:var(--danger);}
+  .stat-card .stat-num{font-size:24px;font-weight:800;color:var(--navy);line-height:1.1;}
+  .stat-card .stat-text{font-size:12.5px;color:var(--text-muted);margin-top:3px;font-weight:600;}
+
+  .section-head{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    flex-wrap:wrap;margin-bottom:18px;
+  }
+  .section-head-left{display:flex;align-items:center;gap:12px;}
+  .section-icon{
+    width:38px;height:38px;border-radius:10px;flex-shrink:0;
+    background:var(--primary-light);color:var(--primary-dark);
+    display:flex;align-items:center;justify-content:center;font-size:15px;
+  }
+  .section-icon.done{background:#e3f5ea;color:var(--success);}
+  .section-head h2{margin:0;font-size:16.5px;color:var(--navy);}
+  .section-sub{font-size:12.5px;color:var(--text-muted);margin-top:2px;}
+  .section-count{
+    background:var(--bg);color:var(--navy);font-size:12.5px;font-weight:700;
+    padding:5px 14px;border-radius:20px;flex-shrink:0;
+  }
+
+  .requests-table{min-width:0;width:100%;}
+  .requests-table thead th{font-weight:700;letter-spacing:.3px;padding:12px 14px;}
+  .requests-table tbody td{padding:14px;}
+  .requests-table tbody tr:nth-child(even){background:var(--white);}
+  .requests-table tbody tr{transition:background .12s;}
+  .requests-table tbody tr:hover{background:var(--primary-light);}
+
+  /* Below tablet width, swap the table for a stacked card layout per row instead of
+     squeezing 7 columns into a horizontal scroll strip. */
+  @media (max-width:760px){
+    .requests-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}
+    .requests-table, .requests-table tbody, .requests-table tr, .requests-table td{display:block;width:100%;}
+    .requests-table tr{
+      border:1px solid var(--border);border-radius:10px;padding:4px 12px;margin-bottom:12px;
+    }
+    .requests-table tbody tr:nth-child(even){background:var(--white);}
+    .requests-table tbody tr:hover{background:transparent;}
+    .requests-table td{
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+      padding:9px 0;border-top:1px solid var(--border);text-align:right;
+    }
+    .requests-table td:first-child{border-top:none;}
+    .requests-table td::before{
+      content:attr(data-label);font-weight:700;color:var(--navy);font-size:12px;text-align:left;
+    }
+    .requests-table td:last-child{justify-content:flex-end;padding-top:12px;}
+    .requests-table td:last-child::before{content:none;}
+    .table-wrap:has(.requests-table){border:none;overflow-x:visible;}
+  }
+
+  .ref-chip{
+    font-family:'Courier New',monospace;font-weight:700;color:var(--navy);
+    background:var(--bg);padding:4px 10px;border-radius:6px;font-size:12.5px;letter-spacing:.2px;
+  }
+  .type-pill{display:inline-block;padding:4px 10px;border-radius:20px;font-size:11.5px;font-weight:700;white-space:nowrap;}
+  .type-pill.matter{background:#e7effb;color:#1c5d99;}
+  .type-pill.office{background:#f1ecfb;color:#6a3fb5;}
+  .type-pill.staff{background:#fff4e0;color:#a3690a;}
+
+  .btn-view-row{border-radius:20px;}
+  .btn-view-row:hover{background:var(--navy);color:var(--white);}
+
+  .empty-state{
+    text-align:center;padding:40px 20px;color:var(--text-muted);font-size:13.5px;
+  }
+  .empty-state i{display:block;font-size:26px;color:var(--border);margin-bottom:10px;}
+
   .modal{
     position:fixed;inset:0;background:rgba(1,52,95,0.55);
     display:flex;align-items:center;justify-content:center;
@@ -502,6 +584,29 @@
   .modal-card h2{margin:0 0 8px;color:var(--navy);}
   .modal-card p{color:var(--text-muted);font-size:14px;margin:4px 0;}
   .modal-card strong{color:var(--navy);}
+
+  .modal-card-details{max-width:540px;text-align:left;}
+  .modal-card-details h2{font-size:19px;margin-bottom:16px;}
+  .rd-hero{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    margin:-4px 0 16px;padding-bottom:16px;border-bottom:1px solid var(--border);
+  }
+  .rd-hero .status-badge{font-size:12.5px;padding:6px 14px;}
+  .rd-section{background:var(--bg);border-radius:10px;padding:2px 16px;margin-bottom:14px;}
+  .rd-section-title{
+    font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+    color:var(--text-muted);padding:12px 0 4px;
+  }
+  .rd-section .matrix-row{border-bottom:1px solid var(--border);}
+  .rd-section .matrix-row:last-child{border-bottom:none;}
+  .rd-note{
+    display:flex;gap:10px;align-items:flex-start;
+    background:var(--primary-light);color:var(--primary-dark);
+    border-radius:10px;padding:12px 14px;font-size:13.5px;font-weight:600;margin-bottom:14px;
+  }
+  .rd-note i{margin-top:2px;}
+  .rd-actions{margin-top:8px;display:flex;gap:10px;justify-content:flex-end;}
+  @media (max-width:480px){.rd-actions{justify-content:stretch;}.rd-actions .btn{flex:1;}}
 
   /* ---------- MSAL sign-in gate ---------- */
   body.pre-auth .sidebar,
@@ -634,7 +739,7 @@
               <div class="grid-3">
                 <div class="field">
                   <label for="matterNumber">Matter number *</label>
-                  <input type="text" id="matterNumber" placeholder="e.g. M-2026-1001">
+                  <input type="text" id="matterNumber" placeholder="Enter matter number">
                 </div>
                 <div class="field">
                   <label for="clientName">Client name</label>
@@ -850,13 +955,50 @@
 
     <section id="view-requests" class="view" hidden>
       <div class="view-wrap">
+        <div class="alert alert-error" id="requestsLoadError" hidden>
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span id="requestsLoadErrorText"></span>
+        </div>
+        <div class="stats-row">
+          <div class="stat-card pending">
+            <div class="stat-icon"><i class="fa-solid fa-hourglass-half"></i></div>
+            <div>
+              <div class="stat-num" id="statPendingCount">0</div>
+              <div class="stat-text">Pending</div>
+            </div>
+          </div>
+          <div class="stat-card approved">
+            <div class="stat-icon"><i class="fa-solid fa-circle-check"></i></div>
+            <div>
+              <div class="stat-num" id="statApprovedCount">0</div>
+              <div class="stat-text">Approved</div>
+            </div>
+          </div>
+          <div class="stat-card rejected">
+            <div class="stat-icon"><i class="fa-solid fa-circle-xmark"></i></div>
+            <div>
+              <div class="stat-num" id="statRejectedCount">0</div>
+              <div class="stat-text">Rejected</div>
+            </div>
+          </div>
+        </div>
+
         <div class="card">
-          <h2 style="margin-bottom:18px;"><i class="fa-solid fa-hourglass-half card-icon"></i>Pending Requests</h2>
+          <div class="section-head">
+            <div class="section-head-left">
+              <div class="section-icon"><i class="fa-solid fa-hourglass-half"></i></div>
+              <div>
+                <h2>Pending Requests</h2>
+                <div class="section-sub">Awaiting verification or approval</div>
+              </div>
+            </div>
+            <span class="section-count" id="pendingCountBadge">0</span>
+          </div>
           <div class="table-wrap">
-            <table>
+            <table class="requests-table">
               <thead>
                 <tr>
-                  <th>Reference No.</th>
+                  <th>ID</th>
                   <th>Type</th>
                   <th>Payee</th>
                   <th>Amount</th>
@@ -868,16 +1010,25 @@
               <tbody id="requestsPendingBody"></tbody>
             </table>
           </div>
-          <p class="hint" id="requestsPendingEmpty" hidden>No pending requests right now.</p>
+          <div class="empty-state" id="requestsPendingEmpty" hidden><i class="fa-solid fa-inbox"></i>No pending requests right now.</div>
         </div>
 
         <div class="card">
-          <h2 style="margin-bottom:18px;"><i class="fa-solid fa-clipboard-check card-icon"></i>Completed &amp; Rejected Requests</h2>
+          <div class="section-head">
+            <div class="section-head-left">
+              <div class="section-icon done"><i class="fa-solid fa-clipboard-check"></i></div>
+              <div>
+                <h2>Completed &amp; Rejected Requests</h2>
+                <div class="section-sub">Finalised request history</div>
+              </div>
+            </div>
+            <span class="section-count" id="completedCountBadge">0</span>
+          </div>
           <div class="table-wrap">
-            <table>
+            <table class="requests-table">
               <thead>
                 <tr>
-                  <th>Reference No.</th>
+                  <th>ID</th>
                   <th>Type</th>
                   <th>Payee</th>
                   <th>Amount</th>
@@ -889,7 +1040,7 @@
               <tbody id="requestsCompletedBody"></tbody>
             </table>
           </div>
-          <p class="hint" id="requestsCompletedEmpty" hidden>No completed or rejected requests yet.</p>
+          <div class="empty-state" id="requestsCompletedEmpty" hidden><i class="fa-solid fa-inbox"></i>No completed or rejected requests yet.</div>
         </div>
       </div>
     </section>
@@ -898,11 +1049,11 @@
 </div>
 
 <div class="modal" id="requestDetailsModal" hidden>
-  <div class="modal-card">
-    <h2 style="margin-bottom:14px;">Request Details</h2>
-    <div id="requestDetailsBody" class="matrix-info" style="text-align:left;"></div>
-    <div style="margin-top:18px;display:flex;gap:10px;justify-content:center;">
-      <button type="button" class="btn btn-ghost" id="closeRequestDetailsBtn">Close</button>
+  <div class="modal-card modal-card-details">
+    <h2>Request Details</h2>
+    <div id="requestDetailsBody" class="matrix-info"></div>
+    <div class="rd-actions">
+      <button type="button" class="btn btn-outline" id="closeRequestDetailsBtn">Close</button>
       <button type="button" class="btn btn-primary" id="resubmitRequestBtn" hidden><i class="fa-solid fa-pen-to-square"></i> Edit &amp; Resubmit</button>
     </div>
   </div>
@@ -912,7 +1063,7 @@
   <div class="modal-card">
     <div class="icon">&#10003;</div>
     <h2>Request Submitted</h2>
-    <p>Reference No: <strong id="refNumber"></strong></p>
+    <p>Request ID: <strong id="refNumber"></strong></p>
     <p id="successSummary"></p>
     <p class="hint" style="margin-top:14px;">Your request has been recorded in SharePoint and routed for verification and approval.</p>
     <div style="margin-top:18px;">
@@ -1293,6 +1444,20 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     req(document.getElementById('bankAccountNumber'), 'Bank account number is required.');
     req(document.getElementById('lawyerInCharge'), 'Lawyer in charge is required.');
     req(document.getElementById('partnerInCharge'), 'Partner in charge is required.');
+    // LawyerInCharge/PartnerInCharge are SharePoint Person columns, so free-typed text that
+    // doesn't match a real directory entry (no email resolved) can't actually be saved there.
+    (function(){
+      var lawyerEl = document.getElementById('lawyerInCharge');
+      if (lawyerEl.value.trim() && !document.getElementById('lawyerInChargeEmail').value){
+        lawyerEl.classList.add('invalid');
+        errors.push('Please pick the Lawyer-In-Charge / HOD from the suggestions list.');
+      }
+      var partnerEl = document.getElementById('partnerInCharge');
+      if (partnerEl.value.trim() && !document.getElementById('partnerInChargeEmail').value){
+        partnerEl.classList.add('invalid');
+        errors.push('Please pick the Partner in charge from the suggestions list.');
+      }
+    })();
 
     var rows = Array.prototype.slice.call(lineItemsBody.querySelectorAll('tr'));
     var anyLineItem = rows.some(function(tr){
@@ -1335,7 +1500,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       bankName: activeBankNameField().value,
       bankAccountNumber: document.getElementById('bankAccountNumber').value,
       lawyerInCharge: document.getElementById('lawyerInCharge').value,
+      lawyerInChargeEmail: document.getElementById('lawyerInChargeEmail').value,
       partnerInCharge: document.getElementById('partnerInCharge').value,
+      partnerInChargeEmail: document.getElementById('partnerInChargeEmail').value,
       ccEmails: (window.getCcSelected ? window.getCcSelected() : []).join(', '),
       lineItems: rows,
       currency: document.getElementById('currency').value,
@@ -1382,7 +1549,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     window.spSubmitRequest(data, files).then(function(created){
       submitBtn.disabled = false;
       submitBtn.innerHTML = originalSubmitHtml;
-      refNumber.textContent = 'EV-' + created.id;
+      refNumber.textContent = created.id;
       successSummary.textContent = data.payee + ' - ' + data.currency + ' ' + data.totalAmount + ' submitted for approval.';
       successModal.hidden = false;
       loadRequestsFromSharePoint();
@@ -1406,25 +1573,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     'rejected': { label: 'Rejected', cls: 'rejected', icon: 'fa-circle-xmark' }
   };
 
-  var SUBMITTED_REQUESTS = [
-    { ref: 'EV-2026-100231', type: 'matter', payee: 'Prestige Land Sdn Bhd', amount: '8,500.00', currency: 'MYR',
-      status: 'approved', date: '2026-08-20', lawyerInCharge: 'Victoria Foo Yi Hui', partnerInCharge: 'Low Huan Qi' },
-    { ref: 'EV-2026-100249', type: 'matter', payee: 'Evergreen Holdings Bhd', amount: '15,000.00', currency: 'MYR',
-      status: 'rejected', date: '2026-08-25', lawyerInCharge: 'Rayhan Kass binti Azriman', partnerInCharge: 'Kee Swee Chuan',
-      note: 'Invoice date exceeded the 3-month submission window.',
-      formData: {
-        nominalType: 'matter', staffSubtype: 'matter', matterNumber: 'M-2026-1003',
-        clientName: 'Evergreen Holdings Bhd', matterDescription: 'Loan Documentation & Facility Agreement',
-        payee: 'Evergreen Holdings Bhd', modeOfPayment: 'Telegraphic Transfer (TT)',
-        bankName: 'HSBC Bank Malaysia Berhad', bankAccountNumber: '1122334455',
-        lawyerInCharge: 'Rayhan Kass binti Azriman', partnerInCharge: 'Kee Swee Chuan', ccEmails: '',
-        currency: 'MYR', lineItems: [{ description: 'Facility drawdown fee', invoice: 'INV-8841', amount: 15000 }]
-      } },
-    { ref: 'EV-2026-100255', type: 'office', payee: 'Ban Guan Stationery Sdn Bhd', amount: '1,250.00', currency: 'MYR',
-      status: 'pending-verification', date: '2026-08-29' },
-    { ref: 'EV-2026-100260', type: 'staff', payee: 'Nurul Izzah binti Hashim', amount: '640.00', currency: 'MYR',
-      status: 'pending-approval', date: '2026-09-01', lawyerInCharge: 'Low Huan Qi' }
-  ];
+  // Populated from the real "EVoucher System" SharePoint list by loadRequestsFromSharePoint()
+  // below - no hardcoded/demo requests here.
+  var SUBMITTED_REQUESTS = [];
 
   var requestsPendingBody = document.getElementById('requestsPendingBody');
   var requestsPendingEmpty = document.getElementById('requestsPendingEmpty');
@@ -1439,38 +1590,59 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   function requestRowHtml(reqItem, idx){
     var meta = STATUS_META[reqItem.status];
     return '<tr>' +
-      '<td>' + escapeHtml(reqItem.ref) + '</td>' +
-      '<td>' + escapeHtml(TYPE_LABELS[reqItem.type] || reqItem.type) + '</td>' +
-      '<td>' + escapeHtml(reqItem.payee) + '</td>' +
-      '<td>' + escapeHtml(reqItem.currency) + ' ' + escapeHtml(reqItem.amount) + '</td>' +
-      '<td>' + escapeHtml(reqItem.date) + '</td>' +
-      '<td><span class="status-badge ' + meta.cls + '"><i class="fa-solid ' + meta.icon + '"></i> ' + meta.label + '</span></td>' +
-      '<td><button type="button" class="btn btn-outline btn-sm view-details-btn" data-idx="' + idx + '"><i class="fa-solid fa-eye"></i> View</button></td>' +
+      '<td data-label="ID"><span class="ref-chip">' + escapeHtml(reqItem.ref) + '</span></td>' +
+      '<td data-label="Type"><span class="type-pill ' + escapeHtml(reqItem.type) + '">' + escapeHtml(TYPE_LABELS[reqItem.type] || reqItem.type) + '</span></td>' +
+      '<td data-label="Payee">' + escapeHtml(reqItem.payee) + '</td>' +
+      '<td data-label="Amount">' + escapeHtml(reqItem.currency) + ' ' + escapeHtml(reqItem.amount) + '</td>' +
+      '<td data-label="Date">' + escapeHtml(reqItem.date) + '</td>' +
+      '<td data-label="Status"><span class="status-badge ' + meta.cls + '"><i class="fa-solid ' + meta.icon + '"></i> ' + meta.label + '</span></td>' +
+      '<td><button type="button" class="btn btn-outline btn-sm btn-view-row view-details-btn" data-idx="' + idx + '"><i class="fa-solid fa-eye"></i> View</button></td>' +
       '</tr>';
   }
 
+  var statPendingCount = document.getElementById('statPendingCount');
+  var statApprovedCount = document.getElementById('statApprovedCount');
+  var statRejectedCount = document.getElementById('statRejectedCount');
+  var pendingCountBadge = document.getElementById('pendingCountBadge');
+  var completedCountBadge = document.getElementById('completedCountBadge');
+
   function renderRequestsList(){
     var pendingHtml = '', completedHtml = '';
+    var pendingCount = 0, approvedCount = 0, rejectedCount = 0;
     SUBMITTED_REQUESTS.forEach(function(reqItem, idx){
       if (reqItem.status === 'pending-verification' || reqItem.status === 'pending-approval'){
         pendingHtml += requestRowHtml(reqItem, idx);
+        pendingCount++;
       } else {
         completedHtml += requestRowHtml(reqItem, idx);
+        if (reqItem.status === 'approved') approvedCount++;
+        else if (reqItem.status === 'rejected') rejectedCount++;
       }
     });
     requestsPendingBody.innerHTML = pendingHtml;
     requestsPendingEmpty.hidden = pendingHtml !== '';
     requestsCompletedBody.innerHTML = completedHtml;
     requestsCompletedEmpty.hidden = completedHtml !== '';
+    statPendingCount.textContent = pendingCount;
+    statApprovedCount.textContent = approvedCount;
+    statRejectedCount.textContent = rejectedCount;
+    pendingCountBadge.textContent = pendingCount;
+    completedCountBadge.textContent = approvedCount + rejectedCount;
   }
+
+  var requestsLoadError = document.getElementById('requestsLoadError');
+  var requestsLoadErrorText = document.getElementById('requestsLoadErrorText');
 
   function loadRequestsFromSharePoint(){
     if (typeof window.spFetchRequests !== 'function') return;
     return window.spFetchRequests().then(function(items){
+      requestsLoadError.hidden = true;
       SUBMITTED_REQUESTS = items;
       renderRequestsList();
     }).catch(function(err){
-      console.warn('Could not load requests from SharePoint - showing previous/demo data instead.', err);
+      console.warn('Could not load requests from SharePoint.', err);
+      requestsLoadErrorText.textContent = 'Could not load requests from SharePoint: ' + err.message;
+      requestsLoadError.hidden = false;
     });
   }
 
@@ -1481,23 +1653,36 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     if (!reqItem) return;
     currentDetailsIdx = idx;
     var meta = STATUS_META[reqItem.status];
-    var rows = [
-      ['Reference No.', reqItem.ref],
-      ['Status', meta.label],
+
+    function rowsHtml(rows){
+      return rows.map(function(r){
+        return '<div class="matrix-row"><span class="label">' + escapeHtml(r[0]) + '</span><span class="value">' + escapeHtml(r[1]) + '</span></div>';
+      }).join('');
+    }
+
+    var overviewRows = [
       ['Request Type', TYPE_LABELS[reqItem.type] || reqItem.type],
       ['Payee', reqItem.payee],
       ['Amount', reqItem.currency + ' ' + reqItem.amount],
       ['Date Submitted', reqItem.date]
     ];
-    if (reqItem.bankName) rows.push(['Bank Name', reqItem.bankName]);
-    if (reqItem.bankAccountNumber) rows.push(['Bank Account Number', reqItem.bankAccountNumber]);
-    if (reqItem.lawyerInCharge) rows.push(['Lawyer-In-Charge / HOD', reqItem.lawyerInCharge]);
-    if (reqItem.partnerInCharge) rows.push(['Partner in Charge', reqItem.partnerInCharge]);
-    if (reqItem.note) rows.push(['Note', reqItem.note]);
+    var paymentRows = [];
+    if (reqItem.bankName) paymentRows.push(['Bank Name', reqItem.bankName]);
+    if (reqItem.bankAccountNumber) paymentRows.push(['Bank Account Number', reqItem.bankAccountNumber]);
+    var approvalRows = [];
+    if (reqItem.lawyerInCharge) approvalRows.push(['Lawyer-In-Charge / HOD', reqItem.lawyerInCharge]);
+    if (reqItem.partnerInCharge) approvalRows.push(['Partner in Charge', reqItem.partnerInCharge]);
 
-    requestDetailsBody.innerHTML = rows.map(function(r){
-      return '<div class="matrix-row"><span class="label">' + escapeHtml(r[0]) + '</span><span class="value">' + escapeHtml(r[1]) + '</span></div>';
-    }).join('');
+    var html = '<div class="rd-hero">' +
+        '<span class="ref-chip">ID ' + escapeHtml(reqItem.ref) + '</span>' +
+        '<span class="status-badge ' + meta.cls + '"><i class="fa-solid ' + meta.icon + '"></i> ' + meta.label + '</span>' +
+      '</div>';
+    html += '<div class="rd-section"><div class="rd-section-title">Overview</div>' + rowsHtml(overviewRows) + '</div>';
+    if (paymentRows.length) html += '<div class="rd-section"><div class="rd-section-title">Payment</div>' + rowsHtml(paymentRows) + '</div>';
+    if (approvalRows.length) html += '<div class="rd-section"><div class="rd-section-title">Approval</div>' + rowsHtml(approvalRows) + '</div>';
+    if (reqItem.note) html += '<div class="rd-note"><i class="fa-solid fa-circle-info"></i> ' + escapeHtml(reqItem.note) + '</div>';
+
+    requestDetailsBody.innerHTML = html;
     resubmitRequestBtn.hidden = !(reqItem.status === 'rejected' && reqItem.formData);
     requestDetailsModal.hidden = false;
   }
@@ -1529,7 +1714,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     activeBankNameField().value = data.bankName || '';
     document.getElementById('bankAccountNumber').value = data.bankAccountNumber || '';
     document.getElementById('lawyerInCharge').value = data.lawyerInCharge || '';
+    document.getElementById('lawyerInChargeEmail').value = data.lawyerInChargeEmail || '';
     document.getElementById('partnerInCharge').value = data.partnerInCharge || '';
+    document.getElementById('partnerInChargeEmail').value = data.partnerInChargeEmail || '';
     if (window.clearCcPicker) window.clearCcPicker(); // CC isn't stored in SharePoint yet, so it can't be restored on resubmit
 
     lineItemsBody.innerHTML = '';
@@ -1706,33 +1893,57 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 <!-- ================================================================
      SharePoint / Graph data integration.
      Site:  https://stwdkl.sharepoint.com/sites/PowerPlatform
-     List:  "EVoucher System"
+     List:  "E-Voucher System"
 
-     KNOWN GAPS - confirmed with the team, not yet resolved:
-     - BankNo: the list has no separate BankName column, so bank name
-       is NOT written anywhere yet (only the account number could map
-       to BankNo). Intentionally left out of the payload until the
-       column is decided/added.
-     - LawyerStatus / PartnerStatus: exact Choice values not yet given.
-       Left out of the create payload (so the column's own default, if
-       any, applies); read back using flexible keyword matching
-       (contains "reject"/"approv"/else pending) so it works regardless
-       of the exact strings.
-     - RequestType: confirmed a Choice column. Options are fetched live
-       from the list itself at sign-in (see loadDynamicChoices below),
-       so the dropdown always matches whatever choices actually exist -
-       no hardcoded guesses.
-     - Attachments: confirmed native SharePoint attachments. Graph API
-       v1.0 does not reliably support list-item attachments, so this
-       uses the classic SharePoint REST endpoint instead, which needs
-       its OWN resource permission (see uploadAttachmentsForItem) -
-       separate from the Graph permissions already granted.
-     - Matter number -> client name/description autofill: wired up to the
-       real "Active Matters" list (see lookupActiveMatter below). FILEID
-       is the matter number column; client name / short description are
-       matched by flexible keyword (column names truncated in the SP
-       view weren't fully readable), same tolerant-matching approach as
-       RequestType/LawyerStatus below.
+     Full column dump pulled 2026-09-13 (56 columns incl. built-ins) - see chat history.
+     Confirmed relevant ones: MatterNo (Number), ClientName/MatterDescription/Payee/BankNo
+     (Text), ModeOfPayment/Currency/RequestType (Choice), PaymentDesc/InvoiceNo/Amount 1-5
+     (Text/Number), TotalAmount (Number), LawyerInCharge/PartnerInCharge (Person/Group),
+     LawyerStatus/PartnerStatus (Choice), LawyerRemarks/PartnerRemarks (Text).
+
+     KNOWN GAPS / OPEN QUESTIONS - not yet resolved:
+     - BankNo wired up (write + read) as the bank account number - confirmed a plain Text
+       column. There is still no separate BankName column, so the bank name the user
+       picks/types is NOT written anywhere.
+     - RequestType's live Choice values are "Matter, Office, Client" - confirmed "Client" is
+       just this list's wording for what the app calls "Staff Claims" internally (same
+       category, not a new one). inferTypeFromText/applyRequestTypeChoices/
+       requestTypeForSharePoint all match on "client" as well as "staff" now.
+     - ModeOfPayment's live 5th choice was literally "Choice 5" (an un-renamed placeholder
+       in the SharePoint list) - to be renamed to "Telegraphic Transfer (TT)" in SharePoint
+       directly (no frontend change needed once that's done).
+     - Currency's live choices were missing "RMB" (present in the form's built-in fallback)
+       - to be added to the SharePoint Choice column directly.
+     - LawyerStatus choices: Approved/Rejected/TIMED OUT/Pending. PartnerStatus choices:
+       Approved/Rejected/TIMED OUT/Not Applicable/Pending. classifyApprovalStatus treats
+       "Not Applicable" as non-blocking (same as approved), since it means partner sign-off
+       doesn't apply to that request. "TIMED OUT" still falls into the generic "pending"
+       bucket - flag if that should instead read as rejected/needs-resubmission.
+     - LawyerInCharge/PartnerInCharge are Person/Group columns. Graph's list-items API
+       won't accept plain display-name text for those (that's why they weren't being
+       captured) - fixed by resolving the picker's email through the classic REST
+       /_api/web/ensureuser endpoint (see ensureSpUser) into the site's numeric user Id,
+       then writing "<Field>LookupId". Requires the picker's hidden *Email field to
+       actually hold an email (i.e. the user picked a real suggestion, not free-typed text)
+       - the submit-time validation now enforces that.
+     - CC: there is no CC column in this list at all (confirmed from the full column dump),
+       so CC recipients still cannot be written anywhere - this needs a product decision on
+       what column to add (e.g. a multi-value Person/Group field, or a plain text field of
+       comma-separated emails) before it can be wired up.
+     - MatterNo's SharePoint column is typed as Number, but matter numbers aren't guaranteed
+       to be purely numeric - the frontend sends whatever was typed as-is rather than
+       assuming/forcing a numeric format; SharePoint will reject it visibly if the column
+       genuinely can't hold a given value, rather than this silently dropping it.
+     - Attachments: confirmed native SharePoint attachments. Graph API v1.0 does not
+       reliably support list-item attachments, so this uses the classic SharePoint REST
+       endpoint instead, which needs its OWN resource permission (see
+       uploadAttachmentsForItem) - separate from the Graph permissions already granted.
+     - Matter number -> client name/description autofill: wired up to the real
+       "Active Matters" list (see lookupActiveMatter below). FILEID is the matter number
+       column; client name comes from the list's default "Title" column; short description
+       is matched by flexible keyword. The OData filter sends the value unquoted only when
+       it looks purely numeric, quoted otherwise, since FILEID's exact column type there
+       isn't confirmed.
      ================================================================ -->
 <script>
 (function(){
@@ -1740,7 +1951,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
   var SP_HOSTNAME = 'stwdkl.sharepoint.com';
   var SP_SITE_PATH = '/sites/PowerPlatform';
-  var SP_LIST_NAME = 'EVoucher System';
+  var SP_LIST_NAME = 'E-Voucher System';
   var SP_MATTERS_LIST_NAME = 'Active Matters';
   var GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
 
@@ -1789,7 +2000,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   function classifyApprovalStatus(text){
     var lc = (text || '').toLowerCase();
     if (lc.indexOf('reject') !== -1 || lc.indexOf('declin') !== -1) return 'rejected';
-    if (lc.indexOf('approv') !== -1) return 'approved';
+    // "Not Applicable" (a real PartnerStatus choice, e.g. requests below a threshold that
+    // don't need partner sign-off) should not block overall approval - treat as a non-issue,
+    // same as an actual approval, for deriveOverallStatus's purposes.
+    if (lc.indexOf('approv') !== -1 || lc.indexOf('not applicable') !== -1) return 'approved';
     return 'pending';
   }
 
@@ -1804,7 +2018,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
   function inferTypeFromText(text){
     var lc = (text || '').toLowerCase();
-    var hasStaff = lc.indexOf('staff') !== -1;
+    // The live RequestType Choice column uses "Client" for what this app calls "Staff
+    // Claims" internally (confirmed same category, just relabelled in SharePoint) - match
+    // on either wording so this keeps working if it's ever renamed back.
+    var hasStaff = lc.indexOf('staff') !== -1 || lc.indexOf('client') !== -1;
     var hasOffice = lc.indexOf('office') !== -1;
     if (hasStaff) return { nominalType: 'staff', staffSubtype: hasOffice ? 'office' : 'matter' };
     if (hasOffice) return { nominalType: 'office', staffSubtype: 'matter' };
@@ -1815,6 +2032,11 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     if (!val) return '';
     if (typeof val === 'string') return val;
     return val.LookupValue || val.displayName || val.Title || '';
+  }
+
+  function personFieldEmail(val){
+    if (!val || typeof val === 'string') return '';
+    return val.Email || val.email || '';
   }
 
   function escapeHtmlLocal(str){
@@ -1832,7 +2054,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var matterChoice, officeChoice, staffGenericChoice, staffMatterChoice, staffOfficeChoice;
     choices.forEach(function(c){
       var lc = c.toLowerCase();
-      var hasStaff = lc.indexOf('staff') !== -1;
+      // "Client" is this list's actual wording for the staff-claims category (confirmed
+      // same category, see inferTypeFromText above) - match either wording.
+      var hasStaff = lc.indexOf('staff') !== -1 || lc.indexOf('client') !== -1;
       var hasOffice = lc.indexOf('office') !== -1;
       var hasMatter = lc.indexOf('matter') !== -1;
       if (hasStaff && hasOffice) staffOfficeChoice = c;
@@ -1859,7 +2083,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
   function requestTypeForSharePoint(data){
     if (data.nominalType === 'staff'){
-      return (data.staffSubtype === 'office' ? TYPE_SP_TEXT['staff-office'] : TYPE_SP_TEXT['staff-matter']) || 'Staff Claims';
+      // 'Client' is the live RequestType Choice value for this category - only used if
+      // loadDynamicChoices hasn't populated TYPE_SP_TEXT yet (e.g. it failed at sign-in).
+      return (data.staffSubtype === 'office' ? TYPE_SP_TEXT['staff-office'] : TYPE_SP_TEXT['staff-matter']) || 'Client';
     }
     return TYPE_SP_TEXT[data.nominalType] || (data.nominalType === 'office' ? 'Office Related' : 'Matter Related');
   }
@@ -2056,10 +2282,15 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   }
 
   function lookupActiveMatter(fileId){
-    var safeId = String(fileId).replace(/'/g, "''");
+    var raw = String(fileId).trim();
+    // Real matter numbers are plain numbers (e.g. 22670667, confirmed via the sibling
+    // MatterNo column being a Number field) - if FILEID is also a Number column, an OData
+    // filter needs the value unquoted (a quoted numeric literal is rejected as a type
+    // mismatch). Fall back to a quoted string literal only for non-numeric input.
+    var filterValue = /^\d+$/.test(raw) ? raw : "'" + raw.replace(/'/g, "''") + "'";
     var url = 'https://' + SP_HOSTNAME + SP_SITE_PATH + "/_api/web/lists/getbytitle('" +
       encodeURIComponent(SP_MATTERS_LIST_NAME) + "')/items?$top=1&$filter=" +
-      encodeURIComponent("FILEID eq '" + safeId + "'");
+      encodeURIComponent("FILEID eq " + filterValue);
     return getSpRestToken().then(function(token){
       return fetch(url, {
         headers: {
@@ -2111,19 +2342,44 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     });
   }
 
+  // LawyerInCharge/PartnerInCharge are Person/Group columns - Graph's list-items API won't
+  // accept plain display-name text for those (that was silently not being captured).
+  // Resolving the picker's email through the classic REST /_api/web/ensureuser endpoint
+  // gives the site's numeric user Id, which is what the "<Field>LookupId" field expects.
+  function ensureSpUser(email){
+    if (!email) return Promise.resolve(null);
+    return getSpRestToken().then(function(token){
+      return fetch('https://' + SP_HOSTNAME + SP_SITE_PATH + '/_api/web/ensureuser', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token.accessToken,
+          'Accept': 'application/json;odata=nometadata',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ logonName: email })
+      });
+    }).then(function(res){
+      if (!res.ok) return res.text().then(function(t){ throw new Error('ensureuser failed for ' + email + ' (' + res.status + '): ' + t); });
+      return res.json();
+    }).then(function(user){ return user && user.Id; });
+  }
+
   window.spSubmitRequest = function(data, attachmentFiles){
     var fields = {
       RequestType: requestTypeForSharePoint(data),
-      MatterNo: data.matterNumber || '',
       ClientName: data.clientName || '',
       MatterDescription: data.matterDescription || '',
       Payee: data.payee || '',
       ModeOfPayment: data.modeOfPayment || '',
       TotalAmount: parseFloat(String(data.totalAmount).replace(/,/g, '')) || 0,
       Currency: data.currency || '',
-      LawyerInCharge: data.lawyerInCharge || '',
-      PartnerInCharge: data.partnerInCharge || ''
+      BankNo: data.bankAccountNumber || ''
     };
+    // MatterNo's SharePoint column is currently typed as Number, but matter numbers aren't
+    // guaranteed to be purely numeric - send whatever was entered as-is (SharePoint will
+    // reject it visibly if the column truly can't hold it, rather than this silently
+    // dropping the value). Only omitted when genuinely blank (Office/Client requests).
+    if (data.matterNumber) fields.MatterNo = data.matterNumber;
     (data.lineItems || []).slice(0, 5).forEach(function(item, i){
       var n = i + 1;
       fields['PaymentDesc' + n] = item.description || '';
@@ -2132,7 +2388,14 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     });
 
     var createdItem;
-    return getSpListId().then(function(listId){
+    return Promise.all([
+      ensureSpUser(data.lawyerInChargeEmail).catch(function(err){ console.warn('Could not resolve Lawyer-In-Charge as a SharePoint user - it will be left blank.', err); return null; }),
+      ensureSpUser(data.partnerInChargeEmail).catch(function(err){ console.warn('Could not resolve Partner In Charge as a SharePoint user - it will be left blank.', err); return null; })
+    ]).then(function(ids){
+      if (ids[0]) fields.LawyerInChargeLookupId = ids[0];
+      if (ids[1]) fields.PartnerInChargeLookupId = ids[1];
+      return getSpListId();
+    }).then(function(listId){
       return getSpSiteId().then(function(siteId){
         return graphRequest('/sites/' + siteId + '/lists/' + listId + '/items', {
           method: 'POST',
@@ -2153,10 +2416,14 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   window.spFetchRequests = function(){
     return getSpListId().then(function(listId){
       return getSpSiteId().then(function(siteId){
-        return graphRequest('/sites/' + siteId + '/lists/' + listId + '/items?$expand=fields&$top=200&$orderby=fields/Created desc');
+        // No $orderby here - Graph rejects ordering by a list-item field ("fields/Created")
+        // unless that column is indexed, which silently failed the whole request. Sort
+        // newest-first on our side instead, using the item's own createdDateTime.
+        return graphRequest('/sites/' + siteId + '/lists/' + listId + '/items?$expand=fields&$top=200');
       });
     }).then(function(result){
       var rows = (result && result.value) || [];
+      rows.sort(function(a, b){ return (b.createdDateTime || '').localeCompare(a.createdDateTime || ''); });
       return rows.map(function(row){
         var f = row.fields || {};
         var typeInfo = inferTypeFromText(f.RequestType);
@@ -2172,8 +2439,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         if (f.PartnerRemarks) noteParts.push('Partner: ' + f.PartnerRemarks);
         var lawyerName = personDisplay(f.LawyerInCharge);
         var partnerName = personDisplay(f.PartnerInCharge);
+        var lawyerEmail = personFieldEmail(f.LawyerInCharge);
+        var partnerEmail = personFieldEmail(f.PartnerInCharge);
         return {
-          ref: 'EV-' + row.id,
+          ref: row.id,
           type: typeInfo.nominalType,
           payee: f.Payee || '',
           amount: (parseFloat(f.TotalAmount) || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
@@ -2182,6 +2451,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
           date: (row.createdDateTime || '').slice(0, 10),
           lawyerInCharge: lawyerName,
           partnerInCharge: partnerName,
+          bankAccountNumber: f.BankNo || '',
           note: noteParts.join(' | ') || undefined,
           formData: {
             nominalType: typeInfo.nominalType,
@@ -2192,9 +2462,11 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
             payee: f.Payee || '',
             modeOfPayment: f.ModeOfPayment || '',
             bankName: '',
-            bankAccountNumber: '',
+            bankAccountNumber: f.BankNo || '',
             lawyerInCharge: lawyerName,
+            lawyerInChargeEmail: lawyerEmail,
             partnerInCharge: partnerName,
+            partnerInChargeEmail: partnerEmail,
             ccEmails: '',
             currency: f.Currency || '',
             lineItems: lineItems

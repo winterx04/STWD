@@ -13,7 +13,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.09.19.16';
+  window.__EVOUCHER_VERSION__ = '2026.09.26.3';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -368,8 +368,18 @@
   tbody tr:nth-child(even){background:#fafbfc;}
   td input{min-width:110px;}
   td .desc-input{min-width:280px;min-height:40px;resize:vertical;font-family:inherit;line-height:1.4;}
+  .char-count{font-size:11px;color:var(--text-muted);text-align:right;margin-top:3px;}
+  .char-count.char-count-limit{color:var(--danger);font-weight:700;text-align:left;}
   #lineItemsBody td{vertical-align:middle;}
   td.amount-cell input{text-align:right;min-width:130px;}
+  /* Give the description column the lion's share of the row - it's the field most likely
+     to need real room, while Invoice No./Amount/the remove button stay compact. */
+  #lineItemsTable{table-layout:fixed;}
+  #lineItemsTable th{white-space:normal;}
+  #lineItemsTable th:nth-child(1),#lineItemsTable td:nth-child(1){width:52%;}
+  #lineItemsTable th:nth-child(2),#lineItemsTable td:nth-child(2){width:23%;}
+  #lineItemsTable th:nth-child(3),#lineItemsTable td:nth-child(3){width:17%;}
+  #lineItemsTable th:nth-child(4),#lineItemsTable td:nth-child(4){width:8%;}
   td.remove-cell{vertical-align:middle;}
   .row-remove{
     background:none;border:none;color:var(--danger);cursor:pointer;
@@ -410,6 +420,7 @@
     background:#fafbfc;
   }
   .dropzone.drag-over{border-color:var(--primary);background:var(--primary-light);}
+  .dropzone.invalid{border-color:var(--danger);background:var(--danger-bg);}
   .dropzone p{margin:4px 0;color:var(--text-muted);font-size:14px;}
   .dropzone-icon{display:block;font-size:26px;color:var(--primary);margin-bottom:10px;}
 
@@ -420,9 +431,11 @@
     opacity:0;pointer-events:none;
   }
   .custom-select-wrap:has(select[hidden]) .cst-trigger,
+  .custom-select-wrap:has(select[hidden]) .cst-search-caret,
   .custom-select-wrap:has(select[hidden]) .cst-panel{display:none;}
   .custom-select-wrap:has(select.invalid) .cst-trigger{border-color:var(--danger);background:var(--danger-bg);}
-  .custom-select-wrap:has(select:disabled) .cst-trigger{opacity:.6;cursor:not-allowed;}
+  .custom-select-wrap:has(select:disabled) .cst-trigger,
+  .custom-select-wrap:has(select:disabled) .cst-search-caret{opacity:.6;cursor:not-allowed;}
   .cst-trigger{
     display:flex;align-items:center;justify-content:space-between;gap:10px;
     width:100%;padding:10px 12px;
@@ -445,6 +458,16 @@
   .cst-option{padding:9px 12px;font-size:14px;cursor:pointer;}
   .cst-option:hover{background:var(--bg);}
   .cst-option.selected{background:var(--primary-light);color:var(--primary-dark);font-weight:600;}
+  .cst-option-empty{color:var(--text-muted);cursor:default;}
+  .cst-option-empty:hover{background:none;}
+  .cst-search-input{cursor:text;padding-right:34px;}
+  .cst-search-caret{
+    position:absolute;top:0;right:12px;bottom:0;
+    display:flex;align-items:center;
+    color:var(--text-muted);font-size:12px;pointer-events:none;
+    transition:transform .15s;
+  }
+  .cst-search-caret.open{transform:rotate(180deg);}
 
   .people-picker{position:relative;}
   .people-picker input[type=text]{padding-right:34px;cursor:text;}
@@ -501,6 +524,23 @@
   /* ---------- View Requests: stat cards, section headers, modernised table ---------- */
   .stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;}
   @media (max-width:680px){.stats-row{grid-template-columns:1fr;}}
+
+  .requests-search{
+    position:relative;margin-bottom:18px;
+  }
+  .requests-search-icon{
+    position:absolute;top:0;bottom:0;left:14px;
+    display:flex;align-items:center;
+    color:var(--text-muted);font-size:14px;pointer-events:none;
+  }
+  .requests-search input{padding-left:38px;padding-right:38px;}
+  .requests-search-clear{
+    position:absolute;top:0;bottom:0;right:6px;
+    display:flex;align-items:center;justify-content:center;
+    width:28px;background:none;border:none;cursor:pointer;
+    color:var(--text-muted);font-size:13px;
+  }
+  .requests-search-clear:hover{color:var(--danger);}
   .stat-card{
     background:var(--white);border:1px solid var(--border);border-radius:var(--radius);
     box-shadow:var(--shadow);padding:18px 20px;display:flex;align-items:center;gap:14px;
@@ -598,7 +638,7 @@
   .modal-card p{color:var(--text-muted);font-size:14px;margin:4px 0;}
   .modal-card strong{color:var(--navy);}
 
-  .modal-card-details{max-width:680px;text-align:left;max-height:85vh;overflow-y:auto;}
+  .modal-card-details{max-width:900px;text-align:left;max-height:94vh;overflow-y:auto;}
   .modal-card-details h2{font-size:19px;margin-bottom:16px;}
   .rd-hero{
     display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
@@ -620,9 +660,9 @@
   }
   .rd-table td{padding:8px 10px 8px 0;border-bottom:1px solid var(--border);font-size:13.5px;color:var(--navy);word-break:break-word;}
   .rd-table tr:last-child td{border-bottom:none;}
-  .rd-table th:nth-child(1),.rd-table td:nth-child(1){width:50%;}
-  .rd-table th:nth-child(2),.rd-table td:nth-child(2){width:25%;}
-  .rd-table th:last-child,.rd-table td:last-child{width:25%;text-align:right;white-space:nowrap;padding-right:0;}
+  .rd-table th:nth-child(1),.rd-table td:nth-child(1){width:65%;}
+  .rd-table th:nth-child(2),.rd-table td:nth-child(2){width:15%;}
+  .rd-table th:last-child,.rd-table td:last-child{width:20%;text-align:right;white-space:nowrap;padding-right:0;}
   .rd-table tr.rd-table-total td{font-weight:700;border-top:1px solid var(--border);border-bottom:none;}
   .rd-note{
     display:flex;gap:10px;align-items:flex-start;
@@ -630,6 +670,8 @@
     border-radius:10px;padding:12px 14px;font-size:13.5px;font-weight:600;margin-bottom:14px;
   }
   .rd-note i{margin-top:2px;}
+  .rd-note strong{display:block;font-size:11px;letter-spacing:.3px;text-transform:uppercase;margin-bottom:2px;}
+  .rd-note.rd-note-rejected{background:var(--danger-bg);color:var(--danger);}
   .rd-actions{margin-top:8px;display:flex;gap:10px;justify-content:flex-end;}
   @media (max-width:480px){.rd-actions{justify-content:stretch;}.rd-actions .btn{flex:1;}}
 
@@ -769,6 +811,7 @@
                 <div class="field">
                   <label for="matterNumber">Matter number *</label>
                   <input type="text" id="matterNumber" placeholder="Enter matter number">
+                  <p class="hint warning" id="matterNumberError" hidden>Matter number does not exist.</p>
                 </div>
                 <div class="field">
                   <label for="clientName">Client name</label>
@@ -791,7 +834,7 @@
                 <input type="text" id="payee" required>
               </div>
               <div class="field">
-                <label for="modeOfPayment">Mode of payment *</label>
+                <label for="modeOfPayment">Mode of Payment *</label>
                 <select id="modeOfPayment" required>
                   <option value="">Select mode</option>
                   <option>Bank Draft</option>
@@ -802,7 +845,7 @@
                 </select>
               </div>
               <div class="field">
-                <label for="bankName">Bank name *</label>
+                <label for="bankName">Bank Name *</label>
                 <select id="bankName" required>
                   <option value="">Select bank</option>
                   <option>AEON Bank (M) Berhad</option>
@@ -874,12 +917,30 @@
                 </div>
               </div>
               <div class="field">
-                <label for="partnerInCharge">Partner in charge *</label>
+                <label for="partnerInCharge">Partner-in-Charge *</label>
                 <div class="people-picker" id="partnerInChargePicker">
                   <input type="text" id="partnerInCharge" autocomplete="off" placeholder="Click or type to search..." required>
                   <input type="hidden" id="partnerInChargeEmail">
                   <i class="fa-solid fa-chevron-down people-picker-caret"></i>
                   <div class="people-suggestions" id="partnerInChargeSuggestions" hidden></div>
+                </div>
+              </div>
+              <div class="field" id="seniorPartnerField" hidden>
+                <label for="seniorPartner">Senior Partner *</label>
+                <div class="people-picker" id="seniorPartnerPicker">
+                  <input type="text" id="seniorPartner" autocomplete="off" placeholder="Click or type to search...">
+                  <input type="hidden" id="seniorPartnerEmail">
+                  <i class="fa-solid fa-chevron-down people-picker-caret"></i>
+                  <div class="people-suggestions" id="seniorPartnerSuggestions" hidden></div>
+                </div>
+              </div>
+              <div class="field" id="seniorPartner2Field" hidden>
+                <label for="seniorPartner2">Senior Partner 2 *</label>
+                <div class="people-picker" id="seniorPartner2Picker">
+                  <input type="text" id="seniorPartner2" autocomplete="off" placeholder="Click or type to search...">
+                  <input type="hidden" id="seniorPartner2Email">
+                  <i class="fa-solid fa-chevron-down people-picker-caret"></i>
+                  <div class="people-suggestions" id="seniorPartner2Suggestions" hidden></div>
                 </div>
               </div>
             </div>
@@ -891,7 +952,7 @@
               <table id="lineItemsTable">
                 <thead>
                   <tr>
-                    <th>Payment description</th>
+                    <th>Payment Description</th>
                     <th>Invoice Number/Reference Number</th>
                     <th>Amount</th>
                     <th></th>
@@ -932,8 +993,9 @@
               <input type="file" id="attachment" multiple hidden>
               <i class="fa-solid fa-cloud-arrow-up dropzone-icon"></i>
               <p><span class="link">Browse files</span> or drag them here</p>
-              <p>Invoice, bill, or other supporting documents</p>
+              <p>Invoice, bill, or other supporting documents (max 5MB per file)</p>
             </div>
+            <p class="hint warning" id="attachmentError" hidden></p>
             <ul class="file-list" id="fileList"></ul>
           </section>
 
@@ -1001,6 +1063,12 @@
               <div class="stat-text">Rejected</div>
             </div>
           </div>
+        </div>
+
+        <div class="requests-search">
+          <i class="fa-solid fa-magnifying-glass requests-search-icon"></i>
+          <input type="text" id="requestsSearchInput" placeholder="Search by ID, Type, Matter No, Status, Amount...">
+          <button type="button" class="requests-search-clear" id="requestsSearchClear" hidden title="Clear search"><i class="fa-solid fa-xmark"></i></button>
         </div>
 
         <div class="card">
@@ -1107,6 +1175,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var matterNumber = document.getElementById('matterNumber');
   var clientName = document.getElementById('clientName');
   var matterDescription = document.getElementById('matterDescription');
+  var matterNumberError = document.getElementById('matterNumberError');
   var lineItemsBody = document.getElementById('lineItemsBody');
   var addRowBtn = document.getElementById('addRowBtn');
   var totalAmountField = document.getElementById('totalAmount');
@@ -1116,6 +1185,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var dropzone = document.getElementById('dropzone');
   var attachmentInput = document.getElementById('attachment');
   var fileList = document.getElementById('fileList');
+  var attachmentError = document.getElementById('attachmentError');
   var form = document.getElementById('voucherForm');
   var errorSummary = document.getElementById('errorSummary');
   var errorList = document.getElementById('errorList');
@@ -1130,6 +1200,17 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var bankNameSelect = document.getElementById('bankName');
   var bankNameManual = document.getElementById('bankNameManual');
   var bankNameForeignHint = document.getElementById('bankNameForeignHint');
+  var payeeInput = document.getElementById('payee');
+  var modeOfPaymentSelect = document.getElementById('modeOfPayment');
+
+  // Payee is typed as-per the bank account name convention, which this firm keeps in all
+  // caps - transform live rather than just visually (text-transform:uppercase would leave
+  // the underlying value mixed-case, which is what actually gets saved to SharePoint).
+  payeeInput.addEventListener('input', function(){
+    var pos = payeeInput.selectionStart;
+    payeeInput.value = payeeInput.value.toUpperCase();
+    payeeInput.setSelectionRange(pos, pos);
+  });
 
   // ---------- Custom dropdown UI for <select> fields (visuals only - the native
   // <select> stays in the DOM as the real data model, so every existing .value
@@ -1200,7 +1281,93 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     syncLabel();
   }
 
-  Array.prototype.forEach.call(document.querySelectorAll('#voucherForm select'), enhanceSelect);
+  // ---------- Searchable variant (Bank Name): same hidden-<select>-as-data-model approach
+  // as enhanceSelect above, but the visible control is a real text input so typing "c"
+  // filters the panel down to matches like "CIMB Bank Berhad" instead of just opening the
+  // full static list. ----------
+  function enhanceSelectSearchable(selectEl){
+    var wrap = document.createElement('div');
+    wrap.className = 'custom-select-wrap';
+    selectEl.parentNode.insertBefore(wrap, selectEl);
+    wrap.appendChild(selectEl);
+
+    var trigger = document.createElement('input');
+    trigger.type = 'text';
+    trigger.autocomplete = 'off';
+    trigger.className = 'cst-trigger cst-search-input';
+    trigger.placeholder = 'Type to search...';
+    wrap.appendChild(trigger);
+
+    var caret = document.createElement('i');
+    caret.className = 'fa-solid fa-chevron-down cst-caret cst-search-caret';
+    wrap.appendChild(caret);
+
+    var panel = document.createElement('div');
+    panel.className = 'cst-panel';
+    panel.hidden = true;
+    wrap.appendChild(panel);
+
+    function syncLabel(){
+      var opt = selectEl.options[selectEl.selectedIndex];
+      trigger.value = (opt && opt.value !== '') ? opt.textContent : '';
+    }
+
+    function closePanel(){ panel.hidden = true; panel.innerHTML = ''; trigger.classList.remove('open'); caret.classList.remove('open'); }
+
+    function renderPanel(filterText){
+      var lc = (filterText || '').toLowerCase();
+      var matches = [];
+      Array.prototype.forEach.call(selectEl.options, function(opt, i){
+        if (opt.value !== '' && opt.textContent.toLowerCase().indexOf(lc) !== -1) matches.push(i);
+      });
+      if (!matches.length){
+        panel.innerHTML = '<div class="cst-option cst-option-empty">No matches found</div>';
+      } else {
+        panel.innerHTML = matches.map(function(i){
+          var cls = 'cst-option' + (i === selectEl.selectedIndex ? ' selected' : '');
+          return '<div class="' + cls + '" data-idx="' + i + '">' + escapeHtml(selectEl.options[i].textContent) + '</div>';
+        }).join('');
+      }
+      panel.hidden = false;
+      trigger.classList.add('open');
+      caret.classList.add('open');
+    }
+
+    trigger.addEventListener('focus', function(){
+      if (selectEl.disabled) return;
+      renderPanel('');
+      trigger.select();
+    });
+
+    trigger.addEventListener('input', function(){ renderPanel(trigger.value); });
+
+    panel.addEventListener('mousedown', function(e){
+      var row = e.target.closest('.cst-option[data-idx]');
+      if (!row) return;
+      e.preventDefault();
+      var idx = parseInt(row.getAttribute('data-idx'), 10);
+      if (selectEl.selectedIndex !== idx){
+        selectEl.selectedIndex = idx;
+        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      closePanel();
+    });
+
+    trigger.addEventListener('keydown', function(e){
+      if (e.key === 'Escape') closePanel();
+    });
+    // Snap back to the actual selected option's text if the user typed something and
+    // clicked away without picking a suggestion - same "must resolve to a real value"
+    // rule used by the Lawyer/Partner people-pickers.
+    trigger.addEventListener('blur', function(){ setTimeout(function(){ closePanel(); syncLabel(); }, 150); });
+    selectEl.addEventListener('change', syncLabel);
+
+    syncLabel();
+    return trigger;
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('#voucherForm select:not(#bankName)'), enhanceSelect);
+  var bankNameSearchInput = enhanceSelectSearchable(bankNameSelect);
 
   var files = [];
   var rowCounter = 0;
@@ -1253,13 +1420,23 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     return n.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
+  var DESC_MAX_LENGTH = 200;
+
+  function descCounterHtml(len){
+    var atLimit = len >= DESC_MAX_LENGTH;
+    return '<div class="char-count' + (atLimit ? ' char-count-limit' : '') + '">' +
+      (atLimit ? 'Maximum ' + DESC_MAX_LENGTH + ' characters reached' : len + '/' + DESC_MAX_LENGTH) +
+      '</div>';
+  }
+
   function createRow(data){
     data = data || {};
     rowCounter++;
     var tr = document.createElement('tr');
     tr.dataset.rowId = rowCounter;
     tr.innerHTML =
-      '<td><textarea class="desc-input" maxlength="200" placeholder="Payment description" rows="2">' + (data.description ? escapeHtml(data.description) : '') + '</textarea></td>' +
+      '<td><textarea class="desc-input" maxlength="200" placeholder="Payment Description" rows="2">' + (data.description ? escapeHtml(data.description) : '') + '</textarea>' +
+      descCounterHtml(data.description ? data.description.length : 0) + '</td>' +
       '<td><input type="text" class="invoice-input" placeholder="Invoice/Ref no." value="' + (data.invoice ? escapeHtml(data.invoice) : '') + '"></td>' +
       '<td class="amount-cell"><input type="text" inputmode="decimal" class="amount-input" placeholder="0.00" value="' + (data.amount ? formatAmount(data.amount) : '') + '"></td>' +
       '<td class="remove-cell"><button type="button" class="row-remove" title="Remove row"><i class="fa-solid fa-trash"></i></button></td>';
@@ -1299,7 +1476,13 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     }
   });
 
-  lineItemsBody.addEventListener('input', function(){ recalc(); });
+  lineItemsBody.addEventListener('input', function(e){
+    if (e.target.classList.contains('desc-input')){
+      var counter = e.target.nextElementSibling;
+      if (counter && counter.classList.contains('char-count')) counter.outerHTML = descCounterHtml(e.target.value.length);
+    }
+    recalc();
+  });
 
   lineItemsBody.addEventListener('blur', function(e){
     if (e.target.classList.contains('amount-input')){
@@ -1330,8 +1513,34 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
     headerTotal.textContent = currencySelect.value + ' ' + total.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+    updateSeniorPartnerAvailability(total);
     updateTracker();
     return { total: total, hasCapBreach: hasCapBreach };
+  }
+
+  // ---------- Senior Partner routing ----------
+  // Matter Related >= RM10,000: LIC + PIC (existing baseline) + 1 Senior Partner.
+  // Office Related, any amount: LIC + 1 Senior Partner; >= RM10,000: a 2nd Senior Partner too.
+  // Staff Claim: unaffected (capped at RM10,000, LIC + PIC baseline only - no Senior Partner).
+  var SENIOR_PARTNER_THRESHOLD = 10000;
+  var seniorPartnerField = document.getElementById('seniorPartnerField');
+  var seniorPartner2Field = document.getElementById('seniorPartner2Field');
+  var seniorPartnerInput = document.getElementById('seniorPartner');
+  var seniorPartner2Input = document.getElementById('seniorPartner2');
+
+  function updateSeniorPartnerAvailability(total){
+    var isOffice = nominalType.value === 'office';
+    var isHighValue = total >= SENIOR_PARTNER_THRESHOLD;
+    var needSP1 = isOffice || (nominalType.value === 'matter' && isHighValue);
+    var needSP2 = isOffice && isHighValue;
+
+    seniorPartnerField.hidden = !needSP1;
+    seniorPartnerInput.required = needSP1;
+    if (!needSP1){ seniorPartnerInput.value = ''; document.getElementById('seniorPartnerEmail').value = ''; }
+
+    seniorPartner2Field.hidden = !needSP2;
+    seniorPartner2Input.required = needSP2;
+    if (!needSP2){ seniorPartner2Input.value = ''; document.getElementById('seniorPartner2Email').value = ''; }
   }
 
   nominalType.addEventListener('change', function(){
@@ -1355,11 +1564,17 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
   function runMatterLookup(){
     var key = matterNumber.value.trim();
+    matterNumberError.hidden = true;
     if (!key || typeof window.lookupActiveMatter !== 'function') return;
     var seq = ++matterLookupSeq;
     window.lookupActiveMatter(key).then(function(match){
       if (seq !== matterLookupSeq) return; // superseded by a newer lookup, ignore stale result
-      if (!match) return;
+      if (!match){
+        // Purely informational - matter numbers not (yet) in Active Matters can still be
+        // entered manually, per the existing "you may edit them if needed" hint below.
+        matterNumberError.hidden = false;
+        return;
+      }
       if (match.client) clientName.value = match.client;
       if (match.description) matterDescription.value = match.description;
     }).catch(function(err){
@@ -1394,6 +1609,17 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     return currencySelect.value !== 'MYR' ? bankNameManual : bankNameSelect;
   }
 
+  // Bank Draft/Cheque aren't paid into a specific bank account, so Bank Name doesn't apply.
+  function updateBankNameAvailability(){
+    var mode = modeOfPaymentSelect.value.toLowerCase();
+    var disable = mode.indexOf('bank draft') !== -1 || mode.indexOf('cheque') !== -1;
+    bankNameSelect.disabled = disable;
+    bankNameSearchInput.disabled = disable;
+    bankNameManual.disabled = disable;
+  }
+  modeOfPaymentSelect.addEventListener('change', updateBankNameAvailability);
+  updateBankNameAvailability();
+
   currencySelect.addEventListener('change', function(){ updateBankNameMode(); recalc(); });
   form.addEventListener('input', updateTracker);
   form.addEventListener('change', updateTracker);
@@ -1419,8 +1645,21 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     updateTracker();
   }
 
+  var MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
+
   function addFiles(fileListObj){
-    Array.prototype.forEach.call(fileListObj, function(f){ files.push(f); });
+    var rejected = [];
+    Array.prototype.forEach.call(fileListObj, function(f){
+      if (f.size > MAX_ATTACHMENT_SIZE) rejected.push(f.name);
+      else files.push(f);
+    });
+    if (rejected.length){
+      attachmentError.textContent = (rejected.length === 1 ? '"' + rejected[0] + '" exceeds' : rejected.length + ' files exceed') +
+        ' the 5MB size limit and ' + (rejected.length === 1 ? 'was' : 'were') + ' not added.';
+      attachmentError.hidden = false;
+    } else {
+      attachmentError.hidden = true;
+    }
     renderFileList();
   }
 
@@ -1446,7 +1685,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     clearInvalidStates();
 
     function req(el, msg){
-      if (!el.hidden && !el.value.trim()){
+      if (!el.hidden && !el.disabled && !el.value.trim()){
         el.classList.add('invalid');
         errors.push(msg);
       }
@@ -1458,26 +1697,37 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var showMatter = !matterSection.hidden;
     if (showMatter) req(matterNumber, 'Matter number is required.');
 
-    req(document.getElementById('payee'), 'Payee is required.');
-    req(document.getElementById('modeOfPayment'), 'Mode of payment is required.');
-    req(activeBankNameField(), 'Bank name is required.');
+    req(payeeInput, 'Payee is required.');
+    var payeeLetterCount = (payeeInput.value.match(/[A-Za-z]/g) || []).length;
+    if (payeeInput.value.trim() && payeeLetterCount < 2){
+      payeeInput.classList.add('invalid');
+      errors.push('Please type as per bank account name.');
+    }
+    req(modeOfPaymentSelect, 'Mode of Payment is required.');
+    req(activeBankNameField(), 'Bank Name is required.');
     req(document.getElementById('bankAccountNumber'), 'Bank account number is required.');
     req(document.getElementById('lawyerInCharge'), 'Lawyer in charge is required.');
-    req(document.getElementById('partnerInCharge'), 'Partner in charge is required.');
+    req(document.getElementById('partnerInCharge'), 'Partner-in-Charge is required.');
     // LawyerInCharge/PartnerInCharge are SharePoint Person columns, so free-typed text that
     // doesn't match a real directory entry (no email resolved) can't actually be saved there.
-    (function(){
-      var lawyerEl = document.getElementById('lawyerInCharge');
-      if (lawyerEl.value.trim() && !document.getElementById('lawyerInChargeEmail').value){
-        lawyerEl.classList.add('invalid');
-        errors.push('Please pick the Lawyer-In-Charge / HOD from the suggestions list.');
+    function reqResolvedPerson(inputId, emailId, label){
+      var el = document.getElementById(inputId);
+      if (el.value.trim() && !document.getElementById(emailId).value){
+        el.classList.add('invalid');
+        errors.push('Please pick the ' + label + ' from the suggestions list.');
       }
-      var partnerEl = document.getElementById('partnerInCharge');
-      if (partnerEl.value.trim() && !document.getElementById('partnerInChargeEmail').value){
-        partnerEl.classList.add('invalid');
-        errors.push('Please pick the Partner in charge from the suggestions list.');
-      }
-    })();
+    }
+    reqResolvedPerson('lawyerInCharge', 'lawyerInChargeEmail', 'Lawyer-In-Charge / HOD');
+    reqResolvedPerson('partnerInCharge', 'partnerInChargeEmail', 'Partner-in-Charge');
+
+    if (!seniorPartnerField.hidden){
+      req(seniorPartnerInput, 'Senior Partner is required.');
+      reqResolvedPerson('seniorPartner', 'seniorPartnerEmail', 'Senior Partner');
+    }
+    if (!seniorPartner2Field.hidden){
+      req(seniorPartner2Input, 'Senior Partner 2 is required.');
+      reqResolvedPerson('seniorPartner2', 'seniorPartner2Email', 'Senior Partner 2');
+    }
 
     var rows = Array.prototype.slice.call(lineItemsBody.querySelectorAll('tr'));
     var anyLineItem = rows.some(function(tr){
@@ -1486,6 +1736,20 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     if (!anyLineItem){
       errors.push('Add at least one payment line item with a description and amount.');
     }
+
+    var invoiceMissing = false;
+    rows.forEach(function(tr){
+      var hasContent = tr.querySelector('.desc-input').value.trim() || parseAmount(tr.querySelector('.amount-input').value) > 0;
+      var invoiceEl = tr.querySelector('.invoice-input');
+      if (hasContent && !invoiceEl.value.trim()){
+        invoiceEl.classList.add('invalid');
+        invoiceMissing = true;
+      }
+    });
+    if (invoiceMissing) errors.push('Invoice number is required for every payment line item.');
+
+    if (!files.length) errors.push('At least one attachment is required.');
+    dropzone.classList.toggle('invalid', !files.length);
 
     var calc = recalc();
     if (calc.hasCapBreach) errors.push('One or more staff claim amounts exceed RM10,000.00.');
@@ -1515,7 +1779,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       matterNumber: matterNumber.value,
       clientName: clientName.value,
       matterDescription: matterDescription.value,
-      payee: document.getElementById('payee').value,
+      payee: payeeInput.value,
       modeOfPayment: document.getElementById('modeOfPayment').value,
       bankName: activeBankNameField().value,
       bankAccountNumber: document.getElementById('bankAccountNumber').value,
@@ -1523,6 +1787,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       lawyerInChargeEmail: document.getElementById('lawyerInChargeEmail').value,
       partnerInCharge: document.getElementById('partnerInCharge').value,
       partnerInChargeEmail: document.getElementById('partnerInChargeEmail').value,
+      seniorPartner: seniorPartnerField.hidden ? '' : seniorPartnerInput.value,
+      seniorPartnerEmail: seniorPartnerField.hidden ? '' : document.getElementById('seniorPartnerEmail').value,
+      seniorPartner2: seniorPartner2Field.hidden ? '' : seniorPartner2Input.value,
+      seniorPartner2Email: seniorPartner2Field.hidden ? '' : document.getElementById('seniorPartner2Email').value,
       lineItems: rows,
       currency: document.getElementById('currency').value,
       totalAmount: totalAmountField.value,
@@ -1537,11 +1805,14 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     staffSubtypeField.hidden = true;
     clientName.value = '';
     matterDescription.value = '';
+    matterNumberError.hidden = true;
     lineItemsBody.innerHTML = '';
     createRow();
     updateLineItemLimitUI();
     files = [];
     renderFileList();
+    attachmentError.hidden = true;
+    dropzone.classList.remove('invalid');
     bankNameManual.value = '';
     updateBankNameMode();
     recalc();
@@ -1629,17 +1900,53 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var pendingCountBadge = document.getElementById('pendingCountBadge');
   var completedCountBadge = document.getElementById('completedCountBadge');
 
+  var requestsSearchInput = document.getElementById('requestsSearchInput');
+  var requestsSearchClear = document.getElementById('requestsSearchClear');
+  var requestsSearchQuery = '';
+
+  // Matches on every column shown in the table (ID, type, payee, amount, date, status) - not
+  // just the columns visible in the current viewport width.
+  function reqItemMatchesSearch(reqItem){
+    if (!requestsSearchQuery) return true;
+    var meta = STATUS_META[reqItem.status];
+    var matterNumber = (reqItem.formData && reqItem.formData.matterNumber) || '';
+    var haystack = [
+      String(reqItem.ref),
+      TYPE_LABELS[reqItem.type] || reqItem.type,
+      String(matterNumber),
+      meta ? meta.label : reqItem.status,
+      reqItem.currency + ' ' + reqItem.amount
+    ].join(' ').toLowerCase();
+    return haystack.indexOf(requestsSearchQuery) !== -1;
+  }
+
+  requestsSearchInput.addEventListener('input', function(){
+    requestsSearchQuery = requestsSearchInput.value.trim().toLowerCase();
+    requestsSearchClear.hidden = !requestsSearchInput.value;
+    renderRequestsList();
+  });
+  requestsSearchClear.addEventListener('click', function(){
+    requestsSearchInput.value = '';
+    requestsSearchQuery = '';
+    requestsSearchClear.hidden = true;
+    renderRequestsList();
+  });
+
   function renderRequestsList(){
     var pendingHtml = '', completedHtml = '';
+    // Stat cards always reflect the true overall totals; the section count badges next to
+    // each table heading reflect what's actually visible under the current search.
     var pendingCount = 0, approvedCount = 0, rejectedCount = 0;
+    var pendingVisible = 0, completedVisible = 0;
     SUBMITTED_REQUESTS.forEach(function(reqItem, idx){
+      var matches = reqItemMatchesSearch(reqItem);
       if (PENDING_STATUSES.indexOf(reqItem.status) !== -1){
-        pendingHtml += requestRowHtml(reqItem, idx);
         pendingCount++;
+        if (matches){ pendingHtml += requestRowHtml(reqItem, idx); pendingVisible++; }
       } else {
-        completedHtml += requestRowHtml(reqItem, idx);
         if (reqItem.status === 'approved' || reqItem.status === 'completed') approvedCount++;
         else if (reqItem.status === 'rejected') rejectedCount++;
+        if (matches){ completedHtml += requestRowHtml(reqItem, idx); completedVisible++; }
       }
     });
     requestsPendingBody.innerHTML = pendingHtml;
@@ -1649,8 +1956,8 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     statPendingCount.textContent = pendingCount;
     statApprovedCount.textContent = approvedCount;
     statRejectedCount.textContent = rejectedCount;
-    pendingCountBadge.textContent = pendingCount;
-    completedCountBadge.textContent = approvedCount + rejectedCount;
+    pendingCountBadge.textContent = pendingVisible;
+    completedCountBadge.textContent = completedVisible;
   }
 
   var requestsLoadError = document.getElementById('requestsLoadError');
@@ -1692,15 +1999,22 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     // Individual stage statuses (Approved/Rejected/Pending/TIMED OUT/Not Applicable) shown
     // as their own colored badge, reusing the same classifyApprovalStatus buckets/colors as
     // the main status pill - but keeping the exact wording SharePoint has, not a generic label.
-    function statusBadgeHtml(status){
+    function statusBadgeHtml(status, displayText){
       var bucket = window.classifyApprovalStatus(status);
       var badgeMeta = STATUS_META[bucket] || STATUS_META.pending;
-      return '<span class="status-badge ' + badgeMeta.cls + '"><i class="fa-solid ' + badgeMeta.icon + '"></i> ' + escapeHtml(status) + '</span>';
+      return '<span class="status-badge ' + badgeMeta.cls + '"><i class="fa-solid ' + badgeMeta.icon + '"></i> ' + escapeHtml(displayText || status) + '</span>';
     }
 
-    function pushPersonRows(rows, roleLabel, statusLabel, name, status){
+    function pushPersonRows(rows, roleLabel, statusLabel, name, status, displayStatusText){
       rows.push([roleLabel, val(name)]);
-      rows.push(status ? [statusLabel, statusBadgeHtml(status), true] : [statusLabel, PLACEHOLDER]);
+      rows.push(status ? [statusLabel, statusBadgeHtml(status, displayStatusText), true] : [statusLabel, PLACEHOLDER]);
+    }
+
+    // The Lawyer stage is a verification step, not an approval one - "Approved" reads as
+    // "Verified" here for display only; the colour/classification (still driven by the raw
+    // status text) is unchanged.
+    function lawyerStatusDisplay(status){
+      return (status || '').toLowerCase() === 'approved' ? 'Verified' : status;
     }
 
     var overviewRows = [
@@ -1721,12 +2035,14 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       return reqItem.currency + ' ' + (parseFloat(n) || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
     var approvalRows = [];
-    pushPersonRows(approvalRows, 'Lawyer-In-Charge / HOD', 'Lawyer Status', reqItem.lawyerInCharge, reqItem.lawyerStatus);
-    pushPersonRows(approvalRows, 'Partner in Charge', 'Partner Status', reqItem.partnerInCharge, reqItem.partnerStatus);
+    pushPersonRows(approvalRows, 'Lawyer-In-Charge / HOD', 'Lawyer Status', reqItem.lawyerInCharge, reqItem.lawyerStatus, lawyerStatusDisplay(reqItem.lawyerStatus));
+    pushPersonRows(approvalRows, 'Partner-in-Charge', 'Partner Status', reqItem.partnerInCharge, reqItem.partnerStatus);
+    pushPersonRows(approvalRows, 'Senior Partner', 'Senior Partner Status', reqItem.seniorPartner, reqItem.seniorPartnerStatus);
+    pushPersonRows(approvalRows, 'Senior Partner 2', 'Senior Partner 2 Status', reqItem.seniorPartner2, reqItem.seniorPartner2Status);
     pushPersonRows(approvalRows, 'Accounts', 'Accounts Status', reqItem.accountsInCharge, reqItem.accountsStatus);
 
     var html = '<div class="rd-hero">' +
-        '<span class="ref-chip">ID ' + escapeHtml(reqItem.ref) + '</span>' +
+        '<span class="ref-chip">ID : ' + escapeHtml(reqItem.ref) + '</span>' +
         '<span class="status-badge ' + meta.cls + '"><i class="fa-solid ' + meta.icon + '"></i> ' + meta.label + '</span>' +
       '</div>';
     html += '<div class="rd-section"><div class="rd-section-title">Overview</div>' + rowsHtml(overviewRows) + '</div>';
@@ -1742,7 +2058,13 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         '</tbody></table></div>';
     }
     html += '<div class="rd-section"><div class="rd-section-title">Approval</div>' + rowsHtml(approvalRows) + '</div>';
-    if (reqItem.note) html += '<div class="rd-note"><i class="fa-solid fa-circle-info"></i> ' + escapeHtml(reqItem.note) + '</div>';
+    if (reqItem.note){
+      var isRejected = reqItem.status === 'rejected';
+      html += '<div class="rd-note' + (isRejected ? ' rd-note-rejected' : '') + '">' +
+        '<i class="fa-solid ' + (isRejected ? 'fa-triangle-exclamation' : 'fa-circle-info') + '"></i>' +
+        '<span><strong>' + (isRejected ? 'Rejection Remarks' : 'Remarks') + '</strong>' + escapeHtml(reqItem.note) + '</span>' +
+        '</div>';
+    }
 
     requestDetailsBody.innerHTML = html;
     resubmitRequestBtn.hidden = !(reqItem.status === 'rejected' && reqItem.formData);
@@ -1769,8 +2091,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     matterNumber.value = data.matterNumber || '';
     clientName.value = data.clientName || '';
     matterDescription.value = data.matterDescription || '';
-    document.getElementById('payee').value = data.payee || '';
-    document.getElementById('modeOfPayment').value = data.modeOfPayment || '';
+    payeeInput.value = (data.payee || '').toUpperCase();
+    modeOfPaymentSelect.value = data.modeOfPayment || '';
+    modeOfPaymentSelect.dispatchEvent(new Event('change'));
     currencySelect.value = data.currency || 'MYR';
     currencySelect.dispatchEvent(new Event('change'));
     activeBankNameField().value = data.bankName || '';
@@ -1785,6 +2108,12 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     items.forEach(function(r){ createRow(r); });
     updateLineItemLimitUI();
     recalc();
+    // After recalc() so the Senior Partner field(s) are already shown/hidden correctly -
+    // otherwise updateSeniorPartnerAvailability would immediately clear whatever's set here.
+    seniorPartnerInput.value = data.seniorPartner || '';
+    document.getElementById('seniorPartnerEmail').value = data.seniorPartnerEmail || '';
+    seniorPartner2Input.value = data.seniorPartner2 || '';
+    document.getElementById('seniorPartner2Email').value = data.seniorPartner2Email || '';
   }
 
   resubmitRequestBtn.addEventListener('click', function(){
@@ -1991,13 +2320,23 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
      Master columns of interest: MatterNo (Number), ClientName/MatterDescription/Payee/
      BankNo/BankNameForeign (Text), ModeOfPayment/Currency/RequestType/BankName (Choice),
-     TotalAmount (Number), LawyerInCharge/PartnerInCharge/Accounts (Person/Group),
-     LawyerStatus/PartnerStatus/AccountsStatus/Status (Choice), LawyerRemarks/
-     PartnerRemarks/AccountsRemarks (Text), LawyerApprovalDate/PartnerApprovalDate/
-     AccountsDate (dateTime). Status (Approved/Rejected/Pending/TIMED OUT/Completed) is
-     the request's single authoritative overall status - read directly via
-     classifyApprovalStatus(f.Status), NOT re-derived from the individual Lawyer/Partner/
-     Accounts stage statuses (those are only shown for extra context in the details modal).
+     TotalAmount (Number), LawyerInCharge/PartnerInCharge/SeniorPartner/SeniorPartner2/
+     Accounts (Person/Group), LawyerStatus/PartnerStatus/SeniorPartnerStatus/
+     SeniorPartner2Status/AccountsStatus/Status (Choice), LawyerRemarks/PartnerRemarks/
+     SeniorPartnerRemarks/SeniorPartner2Remarks/AccountsRemarks (Text),
+     LawyerApprovalDate/PartnerApprovalDate/AccountsDate (dateTime). Status (Approved/
+     Rejected/Pending/TIMED OUT/Completed) is the request's single authoritative overall
+     status - read directly via classifyApprovalStatus(f.Status), NOT re-derived from the
+     individual Lawyer/Partner/SeniorPartner/Accounts stage statuses (those are only shown
+     for extra context in the details modal).
+
+     Senior Partner routing rule (2026-09-26): Matter Related >= RM10,000 needs 1 Senior
+     Partner (on top of the existing LIC+PIC baseline); Office Related needs 1 Senior
+     Partner regardless of amount, and a 2nd ("Senior Partner 2") if also >= RM10,000; Staff
+     Claim is unaffected (already capped at RM10,000, LIC+PIC baseline only). See
+     updateSeniorPartnerAvailability in the form's own script block. Senior Partner/Senior
+     Partner 2 use the SAME security group as Lawyer-In-Charge/Partner-in-Charge
+     (APPROVERS_GROUP_ID) - no separate group.
      This is a 3-stage approval flow (Lawyer -> Partner -> Accounts); the submitter only
      ever picks Lawyer-In-Charge/Partner in charge - Accounts is assigned by a separate
      process, so the form has no field for it.
@@ -2532,10 +2871,14 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var createdMaster;
     return Promise.all([
       ensureSpUser(data.lawyerInChargeEmail).catch(function(err){ console.warn('Could not resolve Lawyer-In-Charge as a SharePoint user - it will be left blank.', err); return null; }),
-      ensureSpUser(data.partnerInChargeEmail).catch(function(err){ console.warn('Could not resolve Partner In Charge as a SharePoint user - it will be left blank.', err); return null; })
+      ensureSpUser(data.partnerInChargeEmail).catch(function(err){ console.warn('Could not resolve Partner In Charge as a SharePoint user - it will be left blank.', err); return null; }),
+      ensureSpUser(data.seniorPartnerEmail).catch(function(err){ console.warn('Could not resolve Senior Partner as a SharePoint user - it will be left blank.', err); return null; }),
+      ensureSpUser(data.seniorPartner2Email).catch(function(err){ console.warn('Could not resolve Senior Partner 2 as a SharePoint user - it will be left blank.', err); return null; })
     ]).then(function(ids){
       if (ids[0]) fields.LawyerInChargeLookupId = ids[0];
       if (ids[1]) fields.PartnerInChargeLookupId = ids[1];
+      if (ids[2]) fields.SeniorPartnerLookupId = ids[2];
+      if (ids[3]) fields.SeniorPartner2LookupId = ids[3];
       return getSpListId(SP_MASTER_LIST_NAME);
     }).then(function(masterListId){
       return getSpSiteId().then(function(siteId){
@@ -2617,13 +2960,14 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         });
       });
 
-      // LawyerInCharge/PartnerInCharge/Accounts only ever come back as "<Field>LookupId"
-      // (the SharePoint user's numeric id) - resolve every distinct id that shows up
-      // across all rows in one batch (getSpUserById caches each, so repeats are free).
+      // LawyerInCharge/PartnerInCharge/SeniorPartner/SeniorPartner2/Accounts only ever come
+      // back as "<Field>LookupId" (the SharePoint user's numeric id) - resolve every
+      // distinct id that shows up across all rows in one batch (getSpUserById caches each,
+      // so repeats are free).
       var neededIds = {};
       masterRows.forEach(function(row){
         var f = row.fields || {};
-        [f.LawyerInChargeLookupId, f.PartnerInChargeLookupId, f.AccountsLookupId].forEach(function(id){
+        [f.LawyerInChargeLookupId, f.PartnerInChargeLookupId, f.SeniorPartnerLookupId, f.SeniorPartner2LookupId, f.AccountsLookupId].forEach(function(id){
           if (id) neededIds[id] = true;
         });
       });
@@ -2643,12 +2987,18 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
           var noteParts = [];
           if (f.LawyerRemarks) noteParts.push('Lawyer: ' + f.LawyerRemarks);
           if (f.PartnerRemarks) noteParts.push('Partner: ' + f.PartnerRemarks);
+          if (f.SeniorPartnerRemarks) noteParts.push('Senior Partner: ' + f.SeniorPartnerRemarks);
+          if (f.SeniorPartner2Remarks) noteParts.push('Senior Partner 2: ' + f.SeniorPartner2Remarks);
           if (f.AccountsRemarks) noteParts.push('Accounts: ' + f.AccountsRemarks);
           var lawyerUser = userById[f.LawyerInChargeLookupId] || {};
           var partnerUser = userById[f.PartnerInChargeLookupId] || {};
+          var seniorPartnerUser = userById[f.SeniorPartnerLookupId] || {};
+          var seniorPartner2User = userById[f.SeniorPartner2LookupId] || {};
           var accountsUser = userById[f.AccountsLookupId] || {};
           var lawyerName = lawyerUser.displayName || '';
           var partnerName = partnerUser.displayName || '';
+          var seniorPartnerName = seniorPartnerUser.displayName || '';
+          var seniorPartner2Name = seniorPartner2User.displayName || '';
           var accountsName = accountsUser.displayName || '';
           return {
             ref: row.id,
@@ -2662,6 +3012,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
             lawyerStatus: f.LawyerStatus || '',
             partnerInCharge: partnerName,
             partnerStatus: f.PartnerStatus || '',
+            seniorPartner: seniorPartnerName,
+            seniorPartnerStatus: f.SeniorPartnerStatus || '',
+            seniorPartner2: seniorPartner2Name,
+            seniorPartner2Status: f.SeniorPartner2Status || '',
             accountsInCharge: accountsName,
             accountsStatus: f.AccountsStatus || '',
             bankName: bankNameValue,
@@ -2681,6 +3035,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
               lawyerInChargeEmail: lawyerUser.email || '',
               partnerInCharge: partnerName,
               partnerInChargeEmail: partnerUser.email || '',
+              seniorPartner: seniorPartnerName,
+              seniorPartnerEmail: seniorPartnerUser.email || '',
+              seniorPartner2: seniorPartner2Name,
+              seniorPartner2Email: seniorPartner2User.email || '',
               currency: f.Currency || '',
               lineItems: lineItems
             }
@@ -2694,6 +3052,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     loadDynamicChoices();
     setupPeoplePicker({ inputId: 'lawyerInCharge', hiddenEmailId: 'lawyerInChargeEmail', suggestionsId: 'lawyerInChargeSuggestions' });
     setupPeoplePicker({ inputId: 'partnerInCharge', hiddenEmailId: 'partnerInChargeEmail', suggestionsId: 'partnerInChargeSuggestions' });
+    // Same security group as Lawyer/Partner (per instruction) - no separate group ID needed.
+    setupPeoplePicker({ inputId: 'seniorPartner', hiddenEmailId: 'seniorPartnerEmail', suggestionsId: 'seniorPartnerSuggestions' });
+    setupPeoplePicker({ inputId: 'seniorPartner2', hiddenEmailId: 'seniorPartner2Email', suggestionsId: 'seniorPartner2Suggestions' });
   });
 })();
 </script>

@@ -13,7 +13,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.09.26.3';
+  window.__EVOUCHER_VERSION__ = '2026.09.27.2';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -926,7 +926,7 @@
                 </div>
               </div>
               <div class="field" id="seniorPartnerField" hidden>
-                <label for="seniorPartner">Senior Partner *</label>
+                <label for="seniorPartner">Senior Partner 1 *</label>
                 <div class="people-picker" id="seniorPartnerPicker">
                   <input type="text" id="seniorPartner" autocomplete="off" placeholder="Click or type to search...">
                   <input type="hidden" id="seniorPartnerEmail">
@@ -1721,8 +1721,8 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     reqResolvedPerson('partnerInCharge', 'partnerInChargeEmail', 'Partner-in-Charge');
 
     if (!seniorPartnerField.hidden){
-      req(seniorPartnerInput, 'Senior Partner is required.');
-      reqResolvedPerson('seniorPartner', 'seniorPartnerEmail', 'Senior Partner');
+      req(seniorPartnerInput, 'Senior Partner 1 is required.');
+      reqResolvedPerson('seniorPartner', 'seniorPartnerEmail', 'Senior Partner 1');
     }
     if (!seniorPartner2Field.hidden){
       req(seniorPartner2Input, 'Senior Partner 2 is required.');
@@ -2037,7 +2037,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var approvalRows = [];
     pushPersonRows(approvalRows, 'Lawyer-In-Charge / HOD', 'Lawyer Status', reqItem.lawyerInCharge, reqItem.lawyerStatus, lawyerStatusDisplay(reqItem.lawyerStatus));
     pushPersonRows(approvalRows, 'Partner-in-Charge', 'Partner Status', reqItem.partnerInCharge, reqItem.partnerStatus);
-    pushPersonRows(approvalRows, 'Senior Partner', 'Senior Partner Status', reqItem.seniorPartner, reqItem.seniorPartnerStatus);
+    pushPersonRows(approvalRows, 'Senior Partner 1', 'Senior Partner 1 Status', reqItem.seniorPartner, reqItem.seniorPartnerStatus);
     pushPersonRows(approvalRows, 'Senior Partner 2', 'Senior Partner 2 Status', reqItem.seniorPartner2, reqItem.seniorPartner2Status);
     pushPersonRows(approvalRows, 'Accounts', 'Accounts Status', reqItem.accountsInCharge, reqItem.accountsStatus);
 
@@ -2320,15 +2320,16 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
      Master columns of interest: MatterNo (Number), ClientName/MatterDescription/Payee/
      BankNo/BankNameForeign (Text), ModeOfPayment/Currency/RequestType/BankName (Choice),
-     TotalAmount (Number), LawyerInCharge/PartnerInCharge/SeniorPartner/SeniorPartner2/
-     Accounts (Person/Group), LawyerStatus/PartnerStatus/SeniorPartnerStatus/
+     TotalAmount (Number), LawyerInCharge/PartnerInCharge/SeniorPartner1/SeniorPartner2/
+     Accounts (Person/Group), LawyerStatus/PartnerStatus/SeniorPartner1Status/
      SeniorPartner2Status/AccountsStatus/Status (Choice), LawyerRemarks/PartnerRemarks/
-     SeniorPartnerRemarks/SeniorPartner2Remarks/AccountsRemarks (Text),
-     LawyerApprovalDate/PartnerApprovalDate/AccountsDate (dateTime). Status (Approved/
-     Rejected/Pending/TIMED OUT/Completed) is the request's single authoritative overall
-     status - read directly via classifyApprovalStatus(f.Status), NOT re-derived from the
-     individual Lawyer/Partner/SeniorPartner/Accounts stage statuses (those are only shown
-     for extra context in the details modal).
+     SeniorPartner1Remarks/SeniorPartner2Remarks/AccountsRemarks (Text),
+     LawyerApprovalDate/PartnerApprovalDate/SeniorPartner1Date/SeniorPartner2Date/
+     AccountsDate (dateTime). Status (Approved/Rejected/Pending/TIMED OUT/Completed) is the
+     request's single authoritative overall status - read directly via
+     classifyApprovalStatus(f.Status), NOT re-derived from the individual Lawyer/Partner/
+     SeniorPartner/Accounts stage statuses (those are only shown for extra context in the
+     details modal).
 
      Senior Partner routing rule (2026-09-26): Matter Related >= RM10,000 needs 1 Senior
      Partner (on top of the existing LIC+PIC baseline); Office Related needs 1 Senior
@@ -2336,7 +2337,11 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
      Claim is unaffected (already capped at RM10,000, LIC+PIC baseline only). See
      updateSeniorPartnerAvailability in the form's own script block. Senior Partner/Senior
      Partner 2 use the SAME security group as Lawyer-In-Charge/Partner-in-Charge
-     (APPROVERS_GROUP_ID) - no separate group.
+     (APPROVERS_GROUP_ID) - no separate group. NOTE: the first Senior Partner column is
+     named "SeniorPartner1" in SharePoint (confirmed via live column dump 2026-09-27) -
+     the form/JS internally calls it "seniorPartner" (no digit) throughout, but every
+     Graph-facing field reference uses SeniorPartner1/SeniorPartner1Status/
+     SeniorPartner1Remarks to match the actual column name.
      This is a 3-stage approval flow (Lawyer -> Partner -> Accounts); the submitter only
      ever picks Lawyer-In-Charge/Partner in charge - Accounts is assigned by a separate
      process, so the form has no field for it.
@@ -2872,12 +2877,12 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     return Promise.all([
       ensureSpUser(data.lawyerInChargeEmail).catch(function(err){ console.warn('Could not resolve Lawyer-In-Charge as a SharePoint user - it will be left blank.', err); return null; }),
       ensureSpUser(data.partnerInChargeEmail).catch(function(err){ console.warn('Could not resolve Partner In Charge as a SharePoint user - it will be left blank.', err); return null; }),
-      ensureSpUser(data.seniorPartnerEmail).catch(function(err){ console.warn('Could not resolve Senior Partner as a SharePoint user - it will be left blank.', err); return null; }),
+      ensureSpUser(data.seniorPartnerEmail).catch(function(err){ console.warn('Could not resolve Senior Partner 1 as a SharePoint user - it will be left blank.', err); return null; }),
       ensureSpUser(data.seniorPartner2Email).catch(function(err){ console.warn('Could not resolve Senior Partner 2 as a SharePoint user - it will be left blank.', err); return null; })
     ]).then(function(ids){
       if (ids[0]) fields.LawyerInChargeLookupId = ids[0];
       if (ids[1]) fields.PartnerInChargeLookupId = ids[1];
-      if (ids[2]) fields.SeniorPartnerLookupId = ids[2];
+      if (ids[2]) fields.SeniorPartner1LookupId = ids[2];
       if (ids[3]) fields.SeniorPartner2LookupId = ids[3];
       return getSpListId(SP_MASTER_LIST_NAME);
     }).then(function(masterListId){
@@ -2967,7 +2972,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       var neededIds = {};
       masterRows.forEach(function(row){
         var f = row.fields || {};
-        [f.LawyerInChargeLookupId, f.PartnerInChargeLookupId, f.SeniorPartnerLookupId, f.SeniorPartner2LookupId, f.AccountsLookupId].forEach(function(id){
+        [f.LawyerInChargeLookupId, f.PartnerInChargeLookupId, f.SeniorPartner1LookupId, f.SeniorPartner2LookupId, f.AccountsLookupId].forEach(function(id){
           if (id) neededIds[id] = true;
         });
       });
@@ -2987,12 +2992,12 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
           var noteParts = [];
           if (f.LawyerRemarks) noteParts.push('Lawyer: ' + f.LawyerRemarks);
           if (f.PartnerRemarks) noteParts.push('Partner: ' + f.PartnerRemarks);
-          if (f.SeniorPartnerRemarks) noteParts.push('Senior Partner: ' + f.SeniorPartnerRemarks);
+          if (f.SeniorPartner1Remarks) noteParts.push('Senior Partner 1: ' + f.SeniorPartner1Remarks);
           if (f.SeniorPartner2Remarks) noteParts.push('Senior Partner 2: ' + f.SeniorPartner2Remarks);
           if (f.AccountsRemarks) noteParts.push('Accounts: ' + f.AccountsRemarks);
           var lawyerUser = userById[f.LawyerInChargeLookupId] || {};
           var partnerUser = userById[f.PartnerInChargeLookupId] || {};
-          var seniorPartnerUser = userById[f.SeniorPartnerLookupId] || {};
+          var seniorPartnerUser = userById[f.SeniorPartner1LookupId] || {};
           var seniorPartner2User = userById[f.SeniorPartner2LookupId] || {};
           var accountsUser = userById[f.AccountsLookupId] || {};
           var lawyerName = lawyerUser.displayName || '';
@@ -3013,7 +3018,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
             partnerInCharge: partnerName,
             partnerStatus: f.PartnerStatus || '',
             seniorPartner: seniorPartnerName,
-            seniorPartnerStatus: f.SeniorPartnerStatus || '',
+            seniorPartnerStatus: f.SeniorPartner1Status || '',
             seniorPartner2: seniorPartner2Name,
             seniorPartner2Status: f.SeniorPartner2Status || '',
             accountsInCharge: accountsName,

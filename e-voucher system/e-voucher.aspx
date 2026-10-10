@@ -13,7 +13,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.09.27.2';
+  window.__EVOUCHER_VERSION__ = '2026.10.10.7';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -213,18 +213,25 @@
   .jump-item:disabled:hover{background:none;}
   .jump-dot{
     position:relative;
-    width:11px;height:11px;flex-shrink:0;border-radius:50%;
+    width:18px;height:18px;flex-shrink:0;border-radius:50%;
     background:var(--border);
     box-sizing:border-box;
+    display:flex;align-items:center;justify-content:center;
     transition:background .2s, border-color .2s;
   }
+  .jump-dot-check{
+    font-size:10px;color:var(--white);line-height:1;
+    opacity:0;transform:scale(.4);
+    transition:opacity .15s, transform .15s;
+  }
   .jump-item:not(:last-child) .jump-dot::after{
-    content:'';position:absolute;top:11px;left:50%;transform:translateX(-50%);
-    width:2px;height:25px;background:var(--border);
+    content:'';position:absolute;top:18px;left:50%;transform:translateX(-50%);
+    width:2px;height:22px;background:var(--border);
     transition:background .2s;
   }
-  .jump-item.done .jump-dot{background:var(--primary);}
-  .jump-item.done .jump-dot::after{background:var(--primary);}
+  .jump-item.done .jump-dot{background:var(--success);}
+  .jump-item.done .jump-dot::after{background:var(--success);}
+  .jump-item.done .jump-dot-check{opacity:1;transform:scale(1);}
   .jump-item.current .jump-dot{background:var(--primary);box-shadow:0 0 0 4px rgba(224,108,35,0.18);}
   .jump-label{font-size:12.5px;font-weight:600;color:var(--text-muted);transition:color .2s;}
   .jump-item.done .jump-label{color:var(--text);}
@@ -404,6 +411,10 @@
   .btn-outline:hover{background:#eef3f8;}
   .btn-ghost{background:transparent;color:var(--text-muted);}
   .btn-ghost:hover{color:var(--danger);}
+  .btn-success{background:var(--success);color:var(--white);}
+  .btn-success:hover{background:#176b3a;}
+  .btn-danger{background:var(--danger);color:var(--white);}
+  .btn-danger:hover{background:#b93636;}
   .btn:disabled{opacity:.5;cursor:not-allowed;}
 
   .actions{
@@ -627,9 +638,18 @@
   }
   .modal[hidden]{display:none;}
   .modal-card{
+    position:relative;
     background:var(--white);border-radius:14px;padding:30px;max-width:420px;width:100%;
     text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.3);
   }
+  .modal-close-x{
+    position:absolute;top:14px;right:14px;
+    width:30px;height:30px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    background:none;border:none;color:var(--text-muted);font-size:15px;cursor:pointer;
+    transition:background .15s, color .15s;
+  }
+  .modal-close-x:hover{background:var(--bg);color:var(--navy);}
   .modal-card .icon{
     width:56px;height:56px;border-radius:50%;background:#e9f7ee;color:var(--success);
     display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:28px;
@@ -674,6 +694,25 @@
   .rd-note.rd-note-rejected{background:var(--danger-bg);color:var(--danger);}
   .rd-actions{margin-top:8px;display:flex;gap:10px;justify-content:flex-end;}
   @media (max-width:480px){.rd-actions{justify-content:stretch;}.rd-actions .btn{flex:1;}}
+  .rd-remarks-box{
+    margin-top:14px;text-align:left;padding:14px;border-radius:10px;
+    background:var(--danger-bg);border:1px solid #f3c6c6;
+  }
+  .rd-remarks-box label{display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--navy);}
+  .rd-remarks-box textarea{width:100%;resize:vertical;}
+  .rd-remarks-box .rd-actions{margin-top:10px;}
+
+  .copy-from-card{background:var(--primary-light);border:1px solid #f4d7bd;}
+  .copy-from-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  .copy-from-icon{font-size:18px;color:var(--primary-dark);flex-shrink:0;}
+  .copy-from-text{display:flex;flex-direction:column;gap:2px;flex:1;min-width:200px;}
+  .copy-from-text strong{font-size:13.5px;color:var(--navy);}
+  .copy-from-text span{font-size:12px;color:var(--text-muted);}
+  .copy-from-row input{width:120px;flex:none;}
+  @media (max-width:680px){
+    .copy-from-row input{width:100%;}
+    .copy-from-row .btn{width:100%;}
+  }
 
   /* ---------- MSAL sign-in gate ---------- */
   body.pre-auth .sidebar,
@@ -751,12 +790,18 @@
 
   <nav class="nav" id="mainNav">
     <button type="button" class="nav-item active" data-view="submit">
-      <i class="fa-solid fa-file-invoice-dollar"></i>
+      <i class="fa-solid fa-square-plus"></i>
       <span>Submit payment request</span>
     </button>
     <button type="button" class="nav-item" data-view="requests">
       <i class="fa-solid fa-list-check"></i>
       <span>View requests</span>
+    </button>
+    <!-- Only revealed for members of the approvers security group - see
+         checkCurrentUserIsApprover in the SharePoint integration script block. -->
+    <button type="button" class="nav-item" data-view="accounts" id="accountsNavItem" hidden>
+      <i class="fa-solid fa-clipboard-check"></i>
+      <span>Accounts Approval</span>
     </button>
   </nav>
 
@@ -785,11 +830,24 @@
             </div>
           </div>
 
+          <div class="card copy-from-card">
+            <div class="copy-from-row">
+              <i class="fa-solid fa-copy copy-from-icon"></i>
+              <div class="copy-from-text">
+                <strong>Copy From An Existing Request</strong>
+                <span>Loads everything except attachments and each line item's amount - edit anything, then submit as a new request.</span>
+              </div>
+              <input type="text" id="copyFromIdInput" inputmode="numeric" placeholder="Enter ID">
+              <button type="button" class="btn btn-outline" id="copyFromIdBtn">Load</button>
+            </div>
+            <p class="hint warning" id="copyFromIdError" hidden></p>
+          </div>
+
           <section class="card" id="form-section-1">
             <h2><span class="step">1</span><i class="fa-solid fa-file-signature card-icon"></i>Request Type</h2>
             <div class="grid-2">
               <div class="field">
-                <label for="nominalType">Payment nominal request for *</label>
+                <label for="nominalType">Payment Nominal Request For *</label>
                 <select id="nominalType" required>
                   <option value="">Select type</option>
                   <option value="matter">E-Voucher on Matter Related</option>
@@ -798,7 +856,7 @@
                 </select>
               </div>
               <div class="field" id="staffSubtypeField" hidden>
-                <label for="staffSubtype">Staff claim category *</label>
+                <label for="staffSubtype">Staff Claim Category *</label>
                 <select id="staffSubtype">
                   <option value="matter">Matter Related</option>
                   <option value="office">Office Related</option>
@@ -809,16 +867,16 @@
             <div id="matterSection" class="matter-fields" hidden>
               <div class="grid-3">
                 <div class="field">
-                  <label for="matterNumber">Matter number *</label>
+                  <label for="matterNumber">Matter Number *</label>
                   <input type="text" id="matterNumber" placeholder="Enter matter number">
                   <p class="hint warning" id="matterNumberError" hidden>Matter number does not exist.</p>
                 </div>
                 <div class="field">
-                  <label for="clientName">Client name</label>
+                  <label for="clientName">Client Name</label>
                   <input type="text" id="clientName" readonly>
                 </div>
                 <div class="field full">
-                  <label for="matterDescription">Matter description</label>
+                  <label for="matterDescription">Matter Description</label>
                   <input type="text" id="matterDescription" readonly>
                 </div>
               </div>
@@ -834,7 +892,7 @@
                 <input type="text" id="payee" required>
               </div>
               <div class="field">
-                <label for="modeOfPayment">Mode of Payment *</label>
+                <label for="modeOfPayment">Mode Of Payment *</label>
                 <select id="modeOfPayment" required>
                   <option value="">Select mode</option>
                   <option>Bank Draft</option>
@@ -898,7 +956,7 @@
                 <p class="hint" id="bankNameForeignHint" hidden>Foreign currency selected &mdash; please type the bank name manually.</p>
               </div>
               <div class="field">
-                <label for="bankAccountNumber">Bank account number *</label>
+                <label for="bankAccountNumber">Bank Account Number *</label>
                 <input type="text" id="bankAccountNumber" required>
               </div>
             </div>
@@ -917,7 +975,7 @@
                 </div>
               </div>
               <div class="field">
-                <label for="partnerInCharge">Partner-in-Charge *</label>
+                <label for="partnerInCharge">Partner-In-Charge *</label>
                 <div class="people-picker" id="partnerInChargePicker">
                   <input type="text" id="partnerInCharge" autocomplete="off" placeholder="Click or type to search..." required>
                   <input type="hidden" id="partnerInChargeEmail">
@@ -981,7 +1039,7 @@
                 </select>
               </div>
               <div class="field">
-                <label for="totalAmount">Total amount</label>
+                <label for="totalAmount">Total Amount</label>
                 <input type="text" id="totalAmount" readonly value="0.00">
               </div>
             </div>
@@ -1008,22 +1066,22 @@
 
       <aside class="submit-tracker-panel">
         <div class="tracker-card">
-          <div class="tracker-card-label">Jump to section</div>
+          <div class="tracker-card-label">Quick Navigation</div>
           <div class="jump-list" id="jumpList">
             <button type="button" class="jump-item" data-step="1" data-target="form-section-1">
-              <span class="jump-dot"></span><span class="jump-label">Request Type</span>
+              <span class="jump-dot"><i class="fa-solid fa-check jump-dot-check"></i></span><span class="jump-label">Request Type</span>
             </button>
             <button type="button" class="jump-item" data-step="2" data-target="form-section-2">
-              <span class="jump-dot"></span><span class="jump-label">Payee &amp; Payment</span>
+              <span class="jump-dot"><i class="fa-solid fa-check jump-dot-check"></i></span><span class="jump-label">Payee &amp; Payment</span>
             </button>
             <button type="button" class="jump-item" data-step="3" data-target="form-section-3">
-              <span class="jump-dot"></span><span class="jump-label">Approval Routing</span>
+              <span class="jump-dot"><i class="fa-solid fa-check jump-dot-check"></i></span><span class="jump-label">Approval Routing</span>
             </button>
             <button type="button" class="jump-item" data-step="4" data-target="form-section-4">
-              <span class="jump-dot"></span><span class="jump-label">Line Items</span>
+              <span class="jump-dot"><i class="fa-solid fa-check jump-dot-check"></i></span><span class="jump-label">Line Items</span>
             </button>
             <button type="button" class="jump-item" data-step="5" data-target="form-section-5">
-              <span class="jump-dot"></span><span class="jump-label">Attachment</span>
+              <span class="jump-dot"><i class="fa-solid fa-check jump-dot-check"></i></span><span class="jump-label">Attachment</span>
             </button>
           </div>
           <div class="tracker-total">
@@ -1133,22 +1191,72 @@
       </div>
     </section>
 
+    <!-- Nav item + view are hidden unless checkCurrentUserIsApprover confirms group membership -
+         see the SharePoint integration script block. -->
+    <section id="view-accounts" class="view" hidden>
+      <div class="view-wrap">
+        <div class="alert alert-error" id="accountsLoadError" hidden>
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span id="accountsLoadErrorText"></span>
+        </div>
+        <div class="card">
+          <div class="section-head">
+            <div class="section-head-left">
+              <div class="section-icon"><i class="fa-solid fa-clipboard-check"></i></div>
+              <div>
+                <h2>Pending Accounts Approval</h2>
+                <div class="section-sub">Cleared all required Lawyer/Partner/Senior Partner approvals - awaiting Accounts</div>
+              </div>
+            </div>
+            <span class="section-count" id="accountsCountBadge">0</span>
+          </div>
+          <div class="table-wrap">
+            <table class="requests-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Type</th>
+                  <th>Payee</th>
+                  <th>Amount</th>
+                  <th>Date</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="accountsPendingBody"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="accountsPendingEmpty" hidden><i class="fa-solid fa-inbox"></i>No requests waiting on Accounts right now.</div>
+        </div>
+      </div>
+    </section>
+
   </div>
 </div>
 
 <div class="modal" id="requestDetailsModal" hidden>
   <div class="modal-card modal-card-details">
+    <button type="button" class="modal-close-x" id="closeRequestDetailsBtn" title="Close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
     <h2>Request Details</h2>
     <div id="requestDetailsBody" class="matrix-info"></div>
-    <div class="rd-actions">
-      <button type="button" class="btn btn-outline" id="closeRequestDetailsBtn">Close</button>
+    <div class="rd-actions" id="rdMainActions">
       <button type="button" class="btn btn-primary" id="resubmitRequestBtn" hidden><i class="fa-solid fa-pen-to-square"></i> Edit &amp; Resubmit</button>
+      <button type="button" class="btn btn-danger" id="accountsRejectBtn" hidden><i class="fa-solid fa-circle-xmark"></i> Reject</button>
+      <button type="button" class="btn btn-success" id="accountsCompleteBtn" hidden><i class="fa-solid fa-circle-check"></i> Mark Complete</button>
+    </div>
+    <div class="rd-remarks-box" id="accountsRemarksBox" hidden>
+      <label for="accountsRemarksInput">Rejection Remarks *</label>
+      <textarea id="accountsRemarksInput" rows="3" placeholder="Explain why this request is being rejected..."></textarea>
+      <div class="rd-actions">
+        <button type="button" class="btn btn-ghost" id="accountsRejectCancelBtn">Cancel</button>
+        <button type="button" class="btn btn-danger" id="accountsRejectConfirmBtn">Confirm Rejection</button>
+      </div>
     </div>
   </div>
 </div>
 
 <div class="modal" id="successModal" hidden>
   <div class="modal-card">
+    <button type="button" class="modal-close-x" id="closeModalXBtn" title="Close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
     <div class="icon">&#10003;</div>
     <h2>Request Submitted</h2>
     <p>Request ID: <strong id="refNumber"></strong></p>
@@ -1186,6 +1294,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var attachmentInput = document.getElementById('attachment');
   var fileList = document.getElementById('fileList');
   var attachmentError = document.getElementById('attachmentError');
+  var copyFromIdInput = document.getElementById('copyFromIdInput');
+  var copyFromIdBtn = document.getElementById('copyFromIdBtn');
+  var copyFromIdError = document.getElementById('copyFromIdError');
   var form = document.getElementById('voucherForm');
   var errorSummary = document.getElementById('errorSummary');
   var errorList = document.getElementById('errorList');
@@ -1384,7 +1495,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
                   activeBankNameField().value.trim() &&
                   document.getElementById('bankAccountNumber').value.trim());
     steps[3] = !!(document.getElementById('lawyerInCharge').value.trim() &&
-                  document.getElementById('partnerInCharge').value.trim());
+                  document.getElementById('partnerInCharge').value.trim() &&
+                  (seniorPartnerField.hidden || seniorPartnerInput.value.trim()) &&
+                  (seniorPartner2Field.hidden || seniorPartner2Input.value.trim()));
     var rows = Array.prototype.slice.call(lineItemsBody.querySelectorAll('tr'));
     steps[4] = rows.some(function(tr){
       return tr.querySelector('.desc-input').value.trim() && parseFloat(tr.querySelector('.amount-input').value) > 0;
@@ -1703,11 +1816,11 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       payeeInput.classList.add('invalid');
       errors.push('Please type as per bank account name.');
     }
-    req(modeOfPaymentSelect, 'Mode of Payment is required.');
+    req(modeOfPaymentSelect, 'Mode Of Payment is required.');
     req(activeBankNameField(), 'Bank Name is required.');
     req(document.getElementById('bankAccountNumber'), 'Bank account number is required.');
     req(document.getElementById('lawyerInCharge'), 'Lawyer in charge is required.');
-    req(document.getElementById('partnerInCharge'), 'Partner-in-Charge is required.');
+    req(document.getElementById('partnerInCharge'), 'Partner-In-Charge is required.');
     // LawyerInCharge/PartnerInCharge are SharePoint Person columns, so free-typed text that
     // doesn't match a real directory entry (no email resolved) can't actually be saved there.
     function reqResolvedPerson(inputId, emailId, label){
@@ -1718,7 +1831,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       }
     }
     reqResolvedPerson('lawyerInCharge', 'lawyerInChargeEmail', 'Lawyer-In-Charge / HOD');
-    reqResolvedPerson('partnerInCharge', 'partnerInChargeEmail', 'Partner-in-Charge');
+    reqResolvedPerson('partnerInCharge', 'partnerInChargeEmail', 'Partner-In-Charge');
 
     if (!seniorPartnerField.hidden){
       req(seniorPartnerInput, 'Senior Partner 1 is required.');
@@ -1852,6 +1965,14 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   });
 
   closeModalBtn.addEventListener('click', function(){ successModal.hidden = true; });
+  document.getElementById('closeModalXBtn').addEventListener('click', function(){ successModal.hidden = true; });
+
+  // Clicking the dimmed backdrop (not the card itself) closes whichever modal it belongs to.
+  Array.prototype.forEach.call(document.querySelectorAll('.modal'), function(modal){
+    modal.addEventListener('click', function(e){
+      if (e.target === modal) modal.hidden = true;
+    });
+  });
 
   // ---------- View Requests: status list + details modal ----------
   var TYPE_LABELS = { matter: 'Matter Related', office: 'Office Related', staff: 'Staff Claims' };
@@ -1875,10 +1996,20 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var requestsPendingEmpty = document.getElementById('requestsPendingEmpty');
   var requestsCompletedBody = document.getElementById('requestsCompletedBody');
   var requestsCompletedEmpty = document.getElementById('requestsCompletedEmpty');
+  var accountsPendingBody = document.getElementById('accountsPendingBody');
+  var accountsPendingEmpty = document.getElementById('accountsPendingEmpty');
+  var accountsCountBadge = document.getElementById('accountsCountBadge');
   var requestDetailsModal = document.getElementById('requestDetailsModal');
   var requestDetailsBody = document.getElementById('requestDetailsBody');
   var closeRequestDetailsBtn = document.getElementById('closeRequestDetailsBtn');
   var resubmitRequestBtn = document.getElementById('resubmitRequestBtn');
+  var rdMainActions = document.getElementById('rdMainActions');
+  var accountsCompleteBtn = document.getElementById('accountsCompleteBtn');
+  var accountsRejectBtn = document.getElementById('accountsRejectBtn');
+  var accountsRemarksBox = document.getElementById('accountsRemarksBox');
+  var accountsRemarksInput = document.getElementById('accountsRemarksInput');
+  var accountsRejectCancelBtn = document.getElementById('accountsRejectCancelBtn');
+  var accountsRejectConfirmBtn = document.getElementById('accountsRejectConfirmBtn');
   var currentDetailsIdx = -1;
 
   function requestRowHtml(reqItem, idx){
@@ -1891,6 +2022,17 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       '<td data-label="Date">' + escapeHtml(reqItem.date) + '</td>' +
       '<td data-label="Status"><span class="status-badge ' + meta.cls + '"><i class="fa-solid ' + meta.icon + '"></i> ' + meta.label + '</span></td>' +
       '<td><button type="button" class="btn btn-outline btn-sm btn-view-row view-details-btn" data-idx="' + idx + '"><i class="fa-solid fa-eye"></i> View</button></td>' +
+      '</tr>';
+  }
+
+  function accountsRowHtml(reqItem, idx){
+    return '<tr>' +
+      '<td data-label="ID"><span class="ref-chip">' + escapeHtml(reqItem.ref) + '</span></td>' +
+      '<td data-label="Type"><span class="type-pill ' + escapeHtml(reqItem.type) + '">' + escapeHtml(TYPE_LABELS[reqItem.type] || reqItem.type) + '</span></td>' +
+      '<td data-label="Payee">' + escapeHtml(reqItem.payee) + '</td>' +
+      '<td data-label="Amount">' + escapeHtml(reqItem.currency) + ' ' + escapeHtml(reqItem.amount) + '</td>' +
+      '<td data-label="Date">' + escapeHtml(reqItem.date) + '</td>' +
+      '<td><button type="button" class="btn btn-outline btn-sm btn-view-row accounts-review-btn" data-idx="' + idx + '"><i class="fa-solid fa-eye"></i> Review</button></td>' +
       '</tr>';
   }
 
@@ -1933,11 +2075,11 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   });
 
   function renderRequestsList(){
-    var pendingHtml = '', completedHtml = '';
+    var pendingHtml = '', completedHtml = '', accountsHtml = '';
     // Stat cards always reflect the true overall totals; the section count badges next to
     // each table heading reflect what's actually visible under the current search.
     var pendingCount = 0, approvedCount = 0, rejectedCount = 0;
-    var pendingVisible = 0, completedVisible = 0;
+    var pendingVisible = 0, completedVisible = 0, accountsVisible = 0;
     SUBMITTED_REQUESTS.forEach(function(reqItem, idx){
       var matches = reqItemMatchesSearch(reqItem);
       if (PENDING_STATUSES.indexOf(reqItem.status) !== -1){
@@ -1948,11 +2090,15 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         else if (reqItem.status === 'rejected') rejectedCount++;
         if (matches){ completedHtml += requestRowHtml(reqItem, idx); completedVisible++; }
       }
+      if (reqItem.readyForAccounts){ accountsHtml += accountsRowHtml(reqItem, idx); accountsVisible++; }
     });
     requestsPendingBody.innerHTML = pendingHtml;
     requestsPendingEmpty.hidden = pendingHtml !== '';
     requestsCompletedBody.innerHTML = completedHtml;
     requestsCompletedEmpty.hidden = completedHtml !== '';
+    accountsPendingBody.innerHTML = accountsHtml;
+    accountsPendingEmpty.hidden = accountsHtml !== '';
+    accountsCountBadge.textContent = accountsVisible;
     statPendingCount.textContent = pendingCount;
     statApprovedCount.textContent = approvedCount;
     statRejectedCount.textContent = rejectedCount;
@@ -1963,22 +2109,28 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var requestsLoadError = document.getElementById('requestsLoadError');
   var requestsLoadErrorText = document.getElementById('requestsLoadErrorText');
 
+  var accountsLoadError = document.getElementById('accountsLoadError');
+  var accountsLoadErrorText = document.getElementById('accountsLoadErrorText');
+
   function loadRequestsFromSharePoint(){
     if (typeof window.spFetchRequests !== 'function') return;
     return window.spFetchRequests().then(function(items){
       requestsLoadError.hidden = true;
+      accountsLoadError.hidden = true;
       SUBMITTED_REQUESTS = items;
       renderRequestsList();
     }).catch(function(err){
       console.warn('Could not load requests from SharePoint.', err);
       requestsLoadErrorText.textContent = 'Could not load requests from SharePoint: ' + err.message;
       requestsLoadError.hidden = false;
+      accountsLoadErrorText.textContent = 'Could not load requests from SharePoint: ' + err.message;
+      accountsLoadError.hidden = false;
     });
   }
 
   window.eVoucherSignInHandlers.push(function(){ loadRequestsFromSharePoint(); });
 
-  function openRequestDetails(idx){
+  function openRequestDetails(idx, fromAccounts){
     var reqItem = SUBMITTED_REQUESTS[idx];
     if (!reqItem) return;
     currentDetailsIdx = idx;
@@ -2036,7 +2188,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     }
     var approvalRows = [];
     pushPersonRows(approvalRows, 'Lawyer-In-Charge / HOD', 'Lawyer Status', reqItem.lawyerInCharge, reqItem.lawyerStatus, lawyerStatusDisplay(reqItem.lawyerStatus));
-    pushPersonRows(approvalRows, 'Partner-in-Charge', 'Partner Status', reqItem.partnerInCharge, reqItem.partnerStatus);
+    pushPersonRows(approvalRows, 'Partner-In-Charge', 'Partner Status', reqItem.partnerInCharge, reqItem.partnerStatus);
     pushPersonRows(approvalRows, 'Senior Partner 1', 'Senior Partner 1 Status', reqItem.seniorPartner, reqItem.seniorPartnerStatus);
     pushPersonRows(approvalRows, 'Senior Partner 2', 'Senior Partner 2 Status', reqItem.seniorPartner2, reqItem.seniorPartner2Status);
     pushPersonRows(approvalRows, 'Accounts', 'Accounts Status', reqItem.accountsInCharge, reqItem.accountsStatus);
@@ -2068,6 +2220,14 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
     requestDetailsBody.innerHTML = html;
     resubmitRequestBtn.hidden = !(reqItem.status === 'rejected' && reqItem.formData);
+
+    var showAccountsActions = !!fromAccounts && reqItem.readyForAccounts;
+    accountsCompleteBtn.hidden = !showAccountsActions;
+    accountsRejectBtn.hidden = !showAccountsActions;
+    accountsRemarksBox.hidden = true;
+    accountsRemarksInput.value = '';
+    rdMainActions.hidden = false;
+
     requestDetailsModal.hidden = false;
   }
 
@@ -2078,6 +2238,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   requestsCompletedBody.addEventListener('click', function(e){
     var btn = e.target.closest('.view-details-btn');
     if (btn) openRequestDetails(parseInt(btn.getAttribute('data-idx'), 10));
+  });
+  accountsPendingBody.addEventListener('click', function(e){
+    var btn = e.target.closest('.accounts-review-btn');
+    if (btn) openRequestDetails(parseInt(btn.getAttribute('data-idx'), 10), true);
   });
 
   closeRequestDetailsBtn.addEventListener('click', function(){ requestDetailsModal.hidden = true; });
@@ -2116,6 +2280,45 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     document.getElementById('seniorPartner2Email').value = data.seniorPartner2Email || '';
   }
 
+  // ---------- Copy From An Existing Request ----------
+  // Open to any ID regardless of status (unlike Edit & Resubmit, which stays restricted to
+  // Rejected items) - but never carries over attachments or each line item's amount, per
+  // instruction, so the submitter still re-confirms the money being paid and re-attaches
+  // whatever supporting documents actually apply to this new request.
+  copyFromIdBtn.addEventListener('click', function(){
+    var id = copyFromIdInput.value.trim();
+    copyFromIdError.hidden = true;
+    if (!id) return;
+    if (typeof window.spFetchRequestById !== 'function'){
+      copyFromIdError.textContent = 'Not connected to SharePoint yet - please make sure you are signed in, then try again.';
+      copyFromIdError.hidden = false;
+      return;
+    }
+    var originalHtml = copyFromIdBtn.innerHTML;
+    copyFromIdBtn.disabled = true;
+    copyFromIdBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading...';
+    window.spFetchRequestById(id).then(function(reqItem){
+      if (!reqItem){
+        copyFromIdError.textContent = 'ID ' + id + ' was not found.';
+        copyFromIdError.hidden = false;
+        return;
+      }
+      var cloned = JSON.parse(JSON.stringify(reqItem.formData || {}));
+      cloned.lineItems = (cloned.lineItems || []).map(function(li){
+        return { description: li.description, invoice: li.invoice, amount: 0 };
+      });
+      applyFormData(cloned);
+      copyFromIdInput.value = '';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }).catch(function(err){
+      copyFromIdError.textContent = 'Could not load ID ' + id + ': ' + ((err && err.message) || 'Unknown error');
+      copyFromIdError.hidden = false;
+    }).then(function(){
+      copyFromIdBtn.disabled = false;
+      copyFromIdBtn.innerHTML = originalHtml;
+    });
+  });
+
   resubmitRequestBtn.addEventListener('click', function(){
     var reqItem = SUBMITTED_REQUESTS[currentDetailsIdx];
     if (!reqItem || !reqItem.formData) return;
@@ -2125,17 +2328,65 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 
+  // ---------- Accounts Approval actions (Mark Complete / Reject) ----------
+  function submitAccountsDecision(decision, remarks){
+    var reqItem = SUBMITTED_REQUESTS[currentDetailsIdx];
+    if (!reqItem || typeof window.spSubmitAccountsDecision !== 'function') return;
+    accountsCompleteBtn.disabled = true;
+    accountsRejectBtn.disabled = true;
+    accountsRejectConfirmBtn.disabled = true;
+    var originalCompleteHtml = accountsCompleteBtn.innerHTML;
+    accountsCompleteBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+    window.spSubmitAccountsDecision(reqItem.ref, decision, remarks, reqItem.submitterEmail).then(function(){
+      requestDetailsModal.hidden = true;
+      loadRequestsFromSharePoint();
+    }).catch(function(err){
+      alert('Could not save the Accounts decision: ' + ((err && err.message) || 'Unknown error'));
+    }).then(function(){
+      accountsCompleteBtn.disabled = false;
+      accountsRejectBtn.disabled = false;
+      accountsRejectConfirmBtn.disabled = false;
+      accountsCompleteBtn.innerHTML = originalCompleteHtml;
+    });
+  }
+
+  accountsCompleteBtn.addEventListener('click', function(){
+    if (!confirm('Mark this request as Complete? The submitter will be emailed.')) return;
+    submitAccountsDecision('Complete', '');
+  });
+  accountsRejectBtn.addEventListener('click', function(){
+    rdMainActions.hidden = true;
+    accountsRemarksBox.hidden = false;
+    accountsRemarksInput.focus();
+  });
+  accountsRejectCancelBtn.addEventListener('click', function(){
+    accountsRemarksBox.hidden = true;
+    rdMainActions.hidden = false;
+  });
+  accountsRejectConfirmBtn.addEventListener('click', function(){
+    var remarks = accountsRemarksInput.value.trim();
+    if (!remarks){
+      accountsRemarksInput.classList.add('invalid');
+      accountsRemarksInput.focus();
+      return;
+    }
+    accountsRemarksInput.classList.remove('invalid');
+    submitAccountsDecision('Rejected', remarks);
+  });
+
   // ---------- Sidebar navigation / view switching ----------
   var navItems = Array.prototype.slice.call(document.querySelectorAll('.nav-item'));
   var views = {
     submit: document.getElementById('view-submit'),
-    requests: document.getElementById('view-requests')
+    requests: document.getElementById('view-requests'),
+    accounts: document.getElementById('view-accounts')
   };
   var topbarTitle = document.getElementById('topbarTitle');
   var topbarSubtitle = document.getElementById('topbarSubtitle');
   var VIEW_META = {
     submit: { title: 'Submit Payment Request', subtitle: 'Payment nominal request and approval routing' },
-    requests: { title: 'View Requests', subtitle: 'Browse previously submitted e-voucher requests' }
+    requests: { title: 'View Requests', subtitle: 'Browse previously submitted e-voucher requests' },
+    accounts: { title: 'Accounts Approval', subtitle: 'Final review for requests that have cleared all required approvals' }
   };
 
   navItems.forEach(function(btn){
@@ -2146,7 +2397,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       var meta = VIEW_META[key];
       topbarTitle.textContent = meta.title;
       topbarSubtitle.textContent = meta.subtitle;
-      if (key === 'requests') loadRequestsFromSharePoint();
+      if (key === 'requests' || key === 'accounts') loadRequestsFromSharePoint();
     });
   });
 
@@ -2213,8 +2464,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   // GroupMember.Read.All is needed for the Lawyer/Partner picker's group membership
   // lookup (Graph /groups/{id}/members). GroupMember.Read.All alone only confirms WHO is a
   // member though - it does not grant permission to read their displayName/mail/UPN, which
-  // come back silently nulled-out without User.ReadBasic.All alongside it.
-  var LOGIN_SCOPES = ['User.Read', 'Sites.ReadWrite.All', 'GroupMember.Read.All', 'User.ReadBasic.All'];
+  // come back silently nulled-out without User.ReadBasic.All alongside it. Mail.Send is
+  // needed for the Accounts Approval email notification (sent from the approver's own
+  // mailbox via /me/sendMail - see sendAccountsDecisionEmail).
+  var LOGIN_SCOPES = ['User.Read', 'Sites.ReadWrite.All', 'GroupMember.Read.All', 'User.ReadBasic.All', 'Mail.Send'];
 
   var authGateSpinner = document.getElementById('authGateSpinner');
   var authGateStatus = document.getElementById('authGateStatus');
@@ -2242,6 +2495,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     profileName.textContent = name;
     profileEmail.textContent = account.username;
     profileAvatar.textContent = initials(name);
+    // Exposed so the Accounts Approval flow (a separate <script> block/closure) knows who
+    // to resolve as the approver when writing AccountsLookupId.
+    window.__currentUserEmail = account.username;
     // When an account is already cached, MSAL can resolve almost instantly - fast enough
     // to get here before the browser has finished parsing later <script> blocks (which is
     // where the people-picker's own setup registers itself). Waiting for DOMContentLoaded
@@ -2336,7 +2592,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
      Partner regardless of amount, and a 2nd ("Senior Partner 2") if also >= RM10,000; Staff
      Claim is unaffected (already capped at RM10,000, LIC+PIC baseline only). See
      updateSeniorPartnerAvailability in the form's own script block. Senior Partner/Senior
-     Partner 2 use the SAME security group as Lawyer-In-Charge/Partner-in-Charge
+     Partner 2 use the SAME security group as Lawyer-In-Charge/Partner-In-Charge
      (APPROVERS_GROUP_ID) - no separate group. NOTE: the first Senior Partner column is
      named "SeniorPartner1" in SharePoint (confirmed via live column dump 2026-09-27) -
      the form/JS internally calls it "seniorPartner" (no digit) throughout, but every
@@ -2351,6 +2607,34 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
      Export (Y/N) and Status (P/C/A/R) also exist on Details but are intentionally left
      unset by spSubmitRequest - like Master's own Status/LawyerStatus/PartnerStatus, they
      look like they belong to a later accounting/approval workflow, not the submitter.
+
+     Accounts Approval (2026-10-10): a built-in final-stage review screen, gated by
+     checkCurrentUserIsApprover (checks the signed-in account's email against
+     APPROVERS_GROUP_ID - the SAME group used for Lawyer/Partner/Senior Partner selection,
+     reused as a stand-in "for now" per instruction, NOT a dedicated Accounts/Finance
+     group). A request appears there once every approval its type/amount actually requires
+     is cleared (see the readyForAccounts computation in spFetchRequests, which mirrors
+     updateSeniorPartnerAvailability's thresholds - keep both in sync if the routing rule
+     ever changes) and AccountsStatus is still blank/Pending. "Mark Complete"/"Reject"
+     (see window.spSubmitAccountsDecision) PATCH the Master item's fields sub-resource
+     directly - note this uses PATCH .../items/{id}/fields with a flat field object, NOT the
+     POST-with-{fields:...}-wrapper used for item creation elsewhere in this file - setting
+     AccountsStatus/AccountsDate/AccountsLookupId/AccountsRemarks and mirroring the decision
+     into Master's own overall Status column, then emails the submitter (resolved from the
+     item's Author/CreatedBy field, same LookupId-resolution pattern as Lawyer/Partner) via
+     Graph /me/sendMail from the approver's own mailbox (needs the new Mail.Send scope -
+     first use will likely need a fresh consent prompt/admin approval, same as every other
+     scope added so far). Untested live as of writing - watch for an alert() on a failed
+     Complete/Reject action, since that's the most likely thing to not match Graph's exact
+     expected request shape.
+
+     Copy From An Existing Request (2026-10-10): a new field on the Submit form (separate
+     from the existing Edit & Resubmit button, which stays restricted to Rejected items) -
+     open to ANY ID regardless of status, per instruction. Reuses spFetchRequests wholesale
+     (window.spFetchRequestById) rather than a separate fetch path. Copies every field
+     applyFormData already restores EXCEPT attachments (never touched - applyFormData never
+     manipulates the local `files` array, so this was already true for free) and EXCEPT each
+     line item's amount (explicitly zeroed before calling applyFormData).
 
      KNOWN GAPS / OPEN QUESTIONS - not yet resolved:
      - RequestType's live Choice values are "Matter, Office, Client" - confirmed "Client" is
@@ -2972,7 +3256,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       var neededIds = {};
       masterRows.forEach(function(row){
         var f = row.fields || {};
-        [f.LawyerInChargeLookupId, f.PartnerInChargeLookupId, f.SeniorPartner1LookupId, f.SeniorPartner2LookupId, f.AccountsLookupId].forEach(function(id){
+        [f.LawyerInChargeLookupId, f.PartnerInChargeLookupId, f.SeniorPartner1LookupId, f.SeniorPartner2LookupId, f.AccountsLookupId, f.AuthorLookupId].forEach(function(id){
           if (id) neededIds[id] = true;
         });
       });
@@ -3000,11 +3284,29 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
           var seniorPartnerUser = userById[f.SeniorPartner1LookupId] || {};
           var seniorPartner2User = userById[f.SeniorPartner2LookupId] || {};
           var accountsUser = userById[f.AccountsLookupId] || {};
+          var submitterUser = userById[f.AuthorLookupId] || {};
           var lawyerName = lawyerUser.displayName || '';
           var partnerName = partnerUser.displayName || '';
           var seniorPartnerName = seniorPartnerUser.displayName || '';
           var seniorPartner2Name = seniorPartner2User.displayName || '';
           var accountsName = accountsUser.displayName || '';
+
+          // Ready for Accounts once every approval the routing rules actually require for
+          // this type/amount is cleared, and Accounts itself hasn't already acted. Mirrors
+          // updateSeniorPartnerAvailability's thresholds in the submit form (kept in sync
+          // manually - see the Senior Partner routing rule note near the top of this block).
+          var totalAmountNum = parseFloat(f.TotalAmount) || 0;
+          var isOfficeType = typeInfo.nominalType === 'office';
+          var isMatterHighValue = typeInfo.nominalType === 'matter' && totalAmountNum >= 10000;
+          var needsSP1 = isOfficeType || isMatterHighValue;
+          var needsSP2 = isOfficeType && totalAmountNum >= 10000;
+          function stageApproved(statusText){ return classifyApprovalStatus(statusText) === 'approved'; }
+          var allApprovalsCleared = stageApproved(f.LawyerStatus) && stageApproved(f.PartnerStatus) &&
+            (!needsSP1 || stageApproved(f.SeniorPartner1Status)) &&
+            (!needsSP2 || stageApproved(f.SeniorPartner2Status));
+          var accountsNotYetActioned = classifyApprovalStatus(f.AccountsStatus) === 'pending';
+          var readyForAccounts = allApprovalsCleared && accountsNotYetActioned;
+
           return {
             ref: row.id,
             type: typeInfo.nominalType,
@@ -3023,6 +3325,8 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
             seniorPartner2Status: f.SeniorPartner2Status || '',
             accountsInCharge: accountsName,
             accountsStatus: f.AccountsStatus || '',
+            readyForAccounts: readyForAccounts,
+            submitterEmail: submitterUser.email || '',
             bankName: bankNameValue,
             bankAccountNumber: f.BankNo || '',
             note: noteParts.join(' | ') || undefined,
@@ -3052,6 +3356,102 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       });
     });
   };
+
+  // Reuses spFetchRequests wholesale rather than a separate single-item network path -
+  // slightly wasteful (fetches every request) but guarantees identical field-mapping logic
+  // with zero duplication, and this app's request volume doesn't make that a real cost.
+  window.spFetchRequestById = function(id){
+    return window.spFetchRequests().then(function(items){
+      return items.filter(function(item){ return String(item.ref) === String(id).trim(); })[0] || null;
+    });
+  };
+
+  // ---------- Accounts Approval ----------
+  function sendAccountsDecisionEmail(itemId, decision, remarks, submitterEmail){
+    if (!submitterEmail){
+      console.warn('No submitter email resolved for item ' + itemId + ' - skipping notification email.');
+      return Promise.resolve();
+    }
+    var statusWord = decision === 'Rejected' ? 'Rejected' : 'Completed';
+    var lines = ['Your e-voucher payment request (ID ' + itemId + ') has been ' + statusWord.toLowerCase() + ' by Accounts.'];
+    if (remarks) lines.push('', 'Remarks: ' + remarks);
+    return window.getGraphToken(['Mail.Send']).then(function(token){
+      return fetch(GRAPH_BASE + '/me/sendMail', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token.accessToken,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: {
+            subject: 'E-Voucher Request ID ' + itemId + ' - ' + statusWord,
+            body: { contentType: 'Text', content: lines.join('\n') },
+            toRecipients: [{ emailAddress: { address: submitterEmail } }]
+          }
+        })
+      });
+    }).then(function(res){
+      if (!res.ok) return res.text().then(function(t){ throw new Error('sendMail failed (' + res.status + '): ' + t); });
+    });
+  }
+
+  // decision: 'Complete' or 'Rejected' (matches the AccountsStatus Choice column's actual
+  // values). Writes AccountsStatus/AccountsDate/AccountsLookupId/AccountsRemarks (via a
+  // Graph PATCH to the item's /fields sub-resource - different from the POST-with-
+  // {fields:...}-wrapper used everywhere else in this file for item creation), mirrors the
+  // decision into Master's own overall Status column, then emails the submitter.
+  window.spSubmitAccountsDecision = function(itemId, decision, remarks, submitterEmail){
+    return ensureSpUser(window.__currentUserEmail).catch(function(err){
+      console.warn('Could not resolve the signed-in Accounts approver as a SharePoint user - AccountsLookupId will be left blank.', err);
+      return null;
+    }).then(function(accountsSpUserId){
+      var fields = {
+        AccountsStatus: decision,
+        AccountsDate: new Date().toISOString(),
+        Status: decision === 'Rejected' ? 'Rejected' : 'Completed'
+      };
+      if (accountsSpUserId) fields.AccountsLookupId = accountsSpUserId;
+      if (remarks) fields.AccountsRemarks = remarks;
+      return getSpListId(SP_MASTER_LIST_NAME).then(function(masterListId){
+        return getSpSiteId().then(function(siteId){
+          return graphRequest('/sites/' + siteId + '/lists/' + masterListId + '/items/' + itemId + '/fields', {
+            method: 'PATCH',
+            body: JSON.stringify(fields)
+          });
+        });
+      });
+    }).then(function(){
+      return sendAccountsDecisionEmail(itemId, decision, remarks, submitterEmail).catch(function(err){
+        console.warn('Accounts decision was saved, but the notification email failed to send.', err);
+      });
+    });
+  };
+
+  // Checks the signed-in account's email against the same security group used for the
+  // Lawyer/Partner/Senior Partner picker (APPROVERS_GROUP_ID) - a stand-in for a dedicated
+  // Accounts/Finance group until one exists, per instruction ("for now use the current
+  // security group"). Gates visibility of the Accounts Approval nav item/view only - it is
+  // NOT itself a security boundary, since SharePoint item-level permissions (set outside
+  // this file) are what actually control who can write AccountsStatus etc.
+  window.checkCurrentUserIsApprover = function(account){
+    var email = (account && account.username || '').toLowerCase();
+    if (!email) return Promise.resolve(false);
+    return fetchGroupMembers().then(function(members){
+      return members.some(function(m){
+        return (m.mail || '').toLowerCase() === email || (m.userPrincipalName || '').toLowerCase() === email;
+      });
+    }).catch(function(err){
+      console.warn('Could not check Accounts approver group membership.', err);
+      return false;
+    });
+  };
+
+  window.eVoucherSignInHandlers.push(function(account){
+    window.checkCurrentUserIsApprover(account).then(function(isApprover){
+      var navItem = document.getElementById('accountsNavItem');
+      if (navItem) navItem.hidden = !isApprover;
+    });
+  });
 
   window.eVoucherSignInHandlers.push(function(){
     loadDynamicChoices();

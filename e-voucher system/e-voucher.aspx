@@ -13,7 +13,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.10.10.7';
+  window.__EVOUCHER_VERSION__ = '2026.10.14.1';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -965,7 +965,7 @@
           <section class="card" id="form-section-3">
             <h2><span class="step">3</span><i class="fa-solid fa-user-check card-icon"></i>Approval Routing</h2>
             <div class="grid-2">
-              <div class="field">
+              <div class="field" id="lawyerInChargeField">
                 <label for="lawyerInCharge">Lawyer-In-Charge / HOD *</label>
                 <div class="people-picker" id="lawyerInChargePicker">
                   <input type="text" id="lawyerInCharge" autocomplete="off" placeholder="Click or type to search..." required>
@@ -1494,7 +1494,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
                   document.getElementById('modeOfPayment').value &&
                   activeBankNameField().value.trim() &&
                   document.getElementById('bankAccountNumber').value.trim());
-    steps[3] = !!(document.getElementById('lawyerInCharge').value.trim() &&
+    steps[3] = !!((lawyerInChargeField.hidden || lawyerInChargeInput.value.trim()) &&
                   document.getElementById('partnerInCharge').value.trim() &&
                   (seniorPartnerField.hidden || seniorPartnerInput.value.trim()) &&
                   (seniorPartner2Field.hidden || seniorPartner2Input.value.trim()));
@@ -1631,11 +1631,14 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     return { total: total, hasCapBreach: hasCapBreach };
   }
 
-  // ---------- Senior Partner routing ----------
+  // ---------- Senior Partner / Lawyer-In-Charge routing ----------
   // Matter Related >= RM10,000: LIC + PIC (existing baseline) + 1 Senior Partner.
-  // Office Related, any amount: LIC + 1 Senior Partner; >= RM10,000: a 2nd Senior Partner too.
+  // Office Related: NO Lawyer-In-Charge/HOD (removed per instruction) - just PIC + 1 Senior
+  // Partner, and >= RM10,000: a 2nd Senior Partner too.
   // Staff Claim: unaffected (capped at RM10,000, LIC + PIC baseline only - no Senior Partner).
   var SENIOR_PARTNER_THRESHOLD = 10000;
+  var lawyerInChargeField = document.getElementById('lawyerInChargeField');
+  var lawyerInChargeInput = document.getElementById('lawyerInCharge');
   var seniorPartnerField = document.getElementById('seniorPartnerField');
   var seniorPartner2Field = document.getElementById('seniorPartner2Field');
   var seniorPartnerInput = document.getElementById('seniorPartner');
@@ -1646,6 +1649,15 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var isHighValue = total >= SENIOR_PARTNER_THRESHOLD;
     var needSP1 = isOffice || (nominalType.value === 'matter' && isHighValue);
     var needSP2 = isOffice && isHighValue;
+    var needLawyer = !isOffice;
+
+    lawyerInChargeField.hidden = !needLawyer;
+    lawyerInChargeInput.required = needLawyer;
+    // req() in validate() checks el.disabled (not just el.hidden) to decide whether a field
+    // is currently required - hiding only the wrapping .field div leaves the <input> itself
+    // not .hidden, so it must also be .disabled or validate() would still demand a value.
+    lawyerInChargeInput.disabled = !needLawyer;
+    if (!needLawyer){ lawyerInChargeInput.value = ''; document.getElementById('lawyerInChargeEmail').value = ''; }
 
     seniorPartnerField.hidden = !needSP1;
     seniorPartnerInput.required = needSP1;
@@ -1656,19 +1668,30 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     if (!needSP2){ seniorPartner2Input.value = ''; document.getElementById('seniorPartner2Email').value = ''; }
   }
 
+  // Switching the request away from a matter-applicable type must clear whatever matter
+  // data was typed in (or copied in via Copy From An Existing Request) - otherwise it just
+  // sits there hidden but still gets submitted, since collectData()/spSubmitRequest read
+  // these fields unconditionally rather than checking matterSection.hidden themselves.
+  function updateMatterVisibility(showMatter){
+    matterSection.hidden = !showMatter;
+    matterNumber.required = showMatter;
+    if (!showMatter){
+      matterNumber.value = '';
+      clientName.value = '';
+      matterDescription.value = '';
+      matterNumberError.hidden = true;
+    }
+  }
+
   nominalType.addEventListener('change', function(){
     var type = nominalType.value;
     staffSubtypeField.hidden = type !== 'staff';
-    var showMatter = type === 'matter' || (type === 'staff' && staffSubtype.value === 'matter');
-    matterSection.hidden = !showMatter;
-    matterNumber.required = showMatter;
+    updateMatterVisibility(type === 'matter' || (type === 'staff' && staffSubtype.value === 'matter'));
     recalc();
   });
 
   staffSubtype.addEventListener('change', function(){
-    var showMatter = nominalType.value === 'staff' && staffSubtype.value === 'matter';
-    matterSection.hidden = !showMatter;
-    matterNumber.required = showMatter;
+    updateMatterVisibility(nominalType.value === 'staff' && staffSubtype.value === 'matter');
     recalc();
   });
 
@@ -1819,7 +1842,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     req(modeOfPaymentSelect, 'Mode Of Payment is required.');
     req(activeBankNameField(), 'Bank Name is required.');
     req(document.getElementById('bankAccountNumber'), 'Bank account number is required.');
-    req(document.getElementById('lawyerInCharge'), 'Lawyer in charge is required.');
+    req(lawyerInChargeInput, 'Lawyer in charge is required.');
     req(document.getElementById('partnerInCharge'), 'Partner-In-Charge is required.');
     // LawyerInCharge/PartnerInCharge are SharePoint Person columns, so free-typed text that
     // doesn't match a real directory entry (no email resolved) can't actually be saved there.
@@ -2252,9 +2275,15 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     nominalType.dispatchEvent(new Event('change'));
     staffSubtype.value = data.staffSubtype || 'matter';
     staffSubtype.dispatchEvent(new Event('change'));
-    matterNumber.value = data.matterNumber || '';
-    clientName.value = data.clientName || '';
-    matterDescription.value = data.matterDescription || '';
+    // Only restore matter fields if they actually apply to THIS data's own type/subtype -
+    // otherwise a historical record that has stale matter data left over from before it was
+    // switched away from Matter Related (the exact bug updateMatterVisibility now prevents
+    // going forward) would have that stale data copied right back in via Copy From An
+    // Existing Request, undoing the clear the dispatched 'change' above just did.
+    var dataShowsMatter = data.nominalType === 'matter' || (data.nominalType === 'staff' && data.staffSubtype === 'matter');
+    matterNumber.value = dataShowsMatter ? (data.matterNumber || '') : '';
+    clientName.value = dataShowsMatter ? (data.clientName || '') : '';
+    matterDescription.value = dataShowsMatter ? (data.matterDescription || '') : '';
     payeeInput.value = (data.payee || '').toUpperCase();
     modeOfPaymentSelect.value = data.modeOfPayment || '';
     modeOfPaymentSelect.dispatchEvent(new Event('change'));
@@ -2587,11 +2616,16 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
      SeniorPartner/Accounts stage statuses (those are only shown for extra context in the
      details modal).
 
-     Senior Partner routing rule (2026-09-26): Matter Related >= RM10,000 needs 1 Senior
-     Partner (on top of the existing LIC+PIC baseline); Office Related needs 1 Senior
-     Partner regardless of amount, and a 2nd ("Senior Partner 2") if also >= RM10,000; Staff
-     Claim is unaffected (already capped at RM10,000, LIC+PIC baseline only). See
-     updateSeniorPartnerAvailability in the form's own script block. Senior Partner/Senior
+     Senior Partner routing rule (2026-09-26, updated 2026-10-14): Matter Related >=
+     RM10,000 needs 1 Senior Partner (on top of the existing LIC+PIC baseline); Office
+     Related has NO Lawyer-In-Charge/HOD step at all (removed 2026-10-14) - just PIC + 1
+     Senior Partner regardless of amount, and a 2nd ("Senior Partner 2") if also >=
+     RM10,000; Staff Claim is unaffected (already capped at RM10,000, LIC+PIC baseline
+     only). See updateSeniorPartnerAvailability in the form's own script block (despite the
+     name, it now also toggles Lawyer-In-Charge's visibility/required state) and the
+     needsLawyer/needsSP1/needsSP2 computation mirrored in spFetchRequests's
+     readyForAccounts logic - keep both in sync if this routing rule ever changes again.
+     Senior Partner/Senior
      Partner 2 use the SAME security group as Lawyer-In-Charge/Partner-In-Charge
      (APPROVERS_GROUP_ID) - no separate group. NOTE: the first Senior Partner column is
      named "SeniorPartner1" in SharePoint (confirmed via live column dump 2026-09-27) -
@@ -2637,6 +2671,18 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
      line item's amount (explicitly zeroed before calling applyFormData).
 
      KNOWN GAPS / OPEN QUESTIONS - not yet resolved:
+     - Fixed 2026-10-14: switching Request Type away from Matter Related (or copying from an
+       existing request via Copy From An Existing Request) used to leave MatterNo/
+       ClientName/MatterDescription populated-but-hidden, and collectData()/spSubmitRequest
+       read them unconditionally - so a request submitted as Office Related could still
+       silently carry stale Matter data into SharePoint. Now cleared whenever matterSection
+       hides (see updateMatterVisibility), and applyFormData only restores those three
+       fields when the SOURCE record's own type was actually matter-applicable (so copying
+       a historical Office Related item that happens to have leftover matter data from
+       before this fix doesn't propagate it forward into the new submission either). This
+       does NOT retroactively clean any already-dirty Master items already sitting in
+       SharePoint from before this fix - that would need a one-off manual/bulk data cleanup,
+       not something done automatically here.
      - RequestType's live Choice values are "Matter, Office, Client" - confirmed "Client" is
        just this list's wording for what the app calls "Staff Claims" internally (same
        category, not a new one). inferTypeFromText/applyRequestTypeChoices/
@@ -3300,8 +3346,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
           var isMatterHighValue = typeInfo.nominalType === 'matter' && totalAmountNum >= 10000;
           var needsSP1 = isOfficeType || isMatterHighValue;
           var needsSP2 = isOfficeType && totalAmountNum >= 10000;
+          var needsLawyer = !isOfficeType; // Office Related has no Lawyer-In-Charge/HOD step
           function stageApproved(statusText){ return classifyApprovalStatus(statusText) === 'approved'; }
-          var allApprovalsCleared = stageApproved(f.LawyerStatus) && stageApproved(f.PartnerStatus) &&
+          var allApprovalsCleared = (!needsLawyer || stageApproved(f.LawyerStatus)) && stageApproved(f.PartnerStatus) &&
             (!needsSP1 || stageApproved(f.SeniorPartner1Status)) &&
             (!needsSP2 || stageApproved(f.SeniorPartner2Status));
           var accountsNotYetActioned = classifyApprovalStatus(f.AccountsStatus) === 'pending';

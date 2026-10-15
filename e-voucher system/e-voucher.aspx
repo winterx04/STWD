@@ -13,7 +13,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.10.14.1';
+  window.__EVOUCHER_VERSION__ = '2026.10.15.10';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -350,6 +350,9 @@
     box-shadow:0 0 0 3px rgba(224,108,35,0.15);
   }
   input[readonly]{background:#f7f8fa;color:var(--text-muted);}
+  input:disabled,select:disabled,textarea:disabled{
+    background:#e3e6eb;color:var(--text-muted);cursor:not-allowed;border-color:var(--border);
+  }
   input.invalid,select.invalid{border-color:var(--danger);background:var(--danger-bg);}
   .hint{font-size:12.5px;color:var(--text-muted);margin:8px 0 0;}
   .hint.warning{color:var(--danger);font-weight:600;}
@@ -446,7 +449,8 @@
   .custom-select-wrap:has(select[hidden]) .cst-panel{display:none;}
   .custom-select-wrap:has(select.invalid) .cst-trigger{border-color:var(--danger);background:var(--danger-bg);}
   .custom-select-wrap:has(select:disabled) .cst-trigger,
-  .custom-select-wrap:has(select:disabled) .cst-search-caret{opacity:.6;cursor:not-allowed;}
+  .custom-select-wrap:has(select:disabled) .cst-search-caret{cursor:not-allowed;}
+  .custom-select-wrap:has(select:disabled) .cst-trigger{background:#e3e6eb;color:var(--text-muted);}
   .cst-trigger{
     display:flex;align-items:center;justify-content:space-between;gap:10px;
     width:100%;padding:10px 12px;
@@ -555,16 +559,32 @@
   .stat-card{
     background:var(--white);border:1px solid var(--border);border-radius:var(--radius);
     box-shadow:var(--shadow);padding:18px 20px;display:flex;align-items:center;gap:14px;
+    cursor:pointer;user-select:none;transition:border-color .15s,box-shadow .15s,transform .1s;
   }
+  .stat-card:hover{border-color:var(--primary);}
+  .stat-card:active{transform:scale(.98);}
+  .stat-card:focus-visible{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(224,108,35,0.15);}
+  .stat-card.pending .stat-icon{background:var(--primary-light);color:var(--primary-dark);}
+  .stat-card.approved .stat-icon{background:#e3f5ea;color:var(--success);}
+  .stat-card.rejected .stat-icon{background:var(--danger-bg);color:var(--danger);}
+  .stat-card.active{border-color:currentColor;box-shadow:0 0 0 2px rgba(224,108,35,0.18);}
+  .stat-card.pending.active{color:var(--primary-dark);}
+  .stat-card.approved.active{color:var(--success);}
+  .stat-card.rejected.active{color:var(--danger);}
   .stat-card .stat-icon{
     width:46px;height:46px;border-radius:12px;flex-shrink:0;
     display:flex;align-items:center;justify-content:center;font-size:18px;
   }
-  .stat-card.pending .stat-icon{background:var(--primary-light);color:var(--primary-dark);}
-  .stat-card.approved .stat-icon{background:#e3f5ea;color:var(--success);}
-  .stat-card.rejected .stat-icon{background:var(--danger-bg);color:var(--danger);}
   .stat-card .stat-num{font-size:24px;font-weight:800;color:var(--navy);line-height:1.1;}
   .stat-card .stat-text{font-size:12.5px;color:var(--text-muted);margin-top:3px;font-weight:600;}
+  .stat-filter-hint{
+    display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--primary-dark);
+    background:var(--primary-light);border-radius:10px;padding:10px 14px;margin-top:14px;
+  }
+  .stat-filter-hint button{
+    margin-left:auto;background:none;border:none;color:var(--primary-dark);font-weight:700;
+    font-size:12.5px;cursor:pointer;text-decoration:underline;
+  }
 
   .section-head{
     display:flex;align-items:center;justify-content:space-between;gap:12px;
@@ -631,6 +651,16 @@
   }
   .empty-state i{display:block;font-size:26px;color:var(--border);margin-bottom:10px;}
 
+  .pagination{display:flex;align-items:center;justify-content:center;gap:16px;padding:16px 0 4px;}
+  .pagination-btn{
+    width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--white);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--navy);font-size:12.5px;
+    transition:background .15s ease,opacity .15s ease;
+  }
+  .pagination-btn:hover:not(:disabled){background:var(--bg);}
+  .pagination-btn:disabled{opacity:.4;cursor:not-allowed;}
+  .pagination-info{font-size:12.5px;font-weight:600;color:var(--text-muted);min-width:90px;text-align:center;}
+
   .modal{
     position:fixed;inset:0;background:rgba(1,52,95,0.55);
     display:flex;align-items:center;justify-content:center;
@@ -684,14 +714,27 @@
   .rd-table th:nth-child(2),.rd-table td:nth-child(2){width:15%;}
   .rd-table th:last-child,.rd-table td:last-child{width:20%;text-align:right;white-space:nowrap;padding-right:0;}
   .rd-table tr.rd-table-total td{font-weight:700;border-top:1px solid var(--border);border-bottom:none;}
-  .rd-note{
-    display:flex;gap:10px;align-items:flex-start;
-    background:var(--primary-light);color:var(--primary-dark);
-    border-radius:10px;padding:12px 14px;font-size:13.5px;font-weight:600;margin-bottom:14px;
+  .rd-section-approval{padding:12px 16px 10px;}
+  .approval-card{background:var(--white);border-radius:10px;padding:12px 14px;margin-bottom:10px;}
+  .approval-card:last-child{margin-bottom:0;}
+  .approval-card-top{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .approval-role{font-size:11px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:var(--text-muted);}
+  .approval-status-muted{font-size:12px;color:var(--text-muted);font-style:italic;font-weight:600;}
+  .approval-card-name{font-size:14.5px;font-weight:700;color:var(--navy);margin-top:6px;}
+  .approval-card-name.value-muted{color:var(--text-muted);font-weight:600;font-style:italic;}
+  .approval-remarks{
+    display:flex;gap:7px;align-items:flex-start;margin-top:10px;padding-top:10px;
+    border-top:1px solid var(--border);font-size:12.5px;color:var(--navy);font-weight:500;
   }
-  .rd-note i{margin-top:2px;}
-  .rd-note strong{display:block;font-size:11px;letter-spacing:.3px;text-transform:uppercase;margin-bottom:2px;}
-  .rd-note.rd-note-rejected{background:var(--danger-bg);color:var(--danger);}
+  .approval-remarks i{margin-top:2px;color:var(--primary);}
+  .rd-attachments{display:flex;flex-direction:column;gap:6px;padding:4px 0 12px;}
+  .rd-attachment{
+    display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--primary);
+    text-decoration:none;word-break:break-all;
+  }
+  .rd-attachment:hover{text-decoration:underline;}
+  .rd-attachment i{color:var(--text-muted);}
+  .rd-no-attachments{font-size:13px;color:var(--text-muted);font-style:italic;padding:4px 0 12px;}
   .rd-actions{margin-top:8px;display:flex;gap:10px;justify-content:flex-end;}
   @media (max-width:480px){.rd-actions{justify-content:stretch;}.rd-actions .btn{flex:1;}}
   .rd-remarks-box{
@@ -900,6 +943,8 @@
                   <option>InterBank GIRO (IBG)</option>
                   <option>Rentas</option>
                   <option>Telegraphic Transfer (TT)</option>
+                  <option>FPX</option>
+                  <option>JomPAY</option>
                 </select>
               </div>
               <div class="field">
@@ -956,7 +1001,7 @@
                 <p class="hint" id="bankNameForeignHint" hidden>Foreign currency selected &mdash; please type the bank name manually.</p>
               </div>
               <div class="field">
-                <label for="bankAccountNumber">Bank Account Number *</label>
+                <label for="bankAccountNumber" id="bankAccountNumberLabel">Bank Account Number *</label>
                 <input type="text" id="bankAccountNumber" required>
               </div>
             </div>
@@ -966,7 +1011,7 @@
             <h2><span class="step">3</span><i class="fa-solid fa-user-check card-icon"></i>Approval Routing</h2>
             <div class="grid-2">
               <div class="field" id="lawyerInChargeField">
-                <label for="lawyerInCharge">Lawyer-In-Charge / HOD *</label>
+                <label for="lawyerInCharge">Lawyer/HOD *</label>
                 <div class="people-picker" id="lawyerInChargePicker">
                   <input type="text" id="lawyerInCharge" autocomplete="off" placeholder="Click or type to search..." required>
                   <input type="hidden" id="lawyerInChargeEmail">
@@ -1100,21 +1145,21 @@
           <span id="requestsLoadErrorText"></span>
         </div>
         <div class="stats-row">
-          <div class="stat-card pending">
+          <div class="stat-card pending" id="statCardPending" data-filter="pending" role="button" tabindex="0" aria-pressed="false">
             <div class="stat-icon"><i class="fa-solid fa-hourglass-half"></i></div>
             <div>
               <div class="stat-num" id="statPendingCount">0</div>
               <div class="stat-text">Pending</div>
             </div>
           </div>
-          <div class="stat-card approved">
+          <div class="stat-card approved" id="statCardApproved" data-filter="approved" role="button" tabindex="0" aria-pressed="false">
             <div class="stat-icon"><i class="fa-solid fa-circle-check"></i></div>
             <div>
               <div class="stat-num" id="statApprovedCount">0</div>
               <div class="stat-text">Approved</div>
             </div>
           </div>
-          <div class="stat-card rejected">
+          <div class="stat-card rejected" id="statCardRejected" data-filter="rejected" role="button" tabindex="0" aria-pressed="false">
             <div class="stat-icon"><i class="fa-solid fa-circle-xmark"></i></div>
             <div>
               <div class="stat-num" id="statRejectedCount">0</div>
@@ -1122,10 +1167,14 @@
             </div>
           </div>
         </div>
+        <div class="stat-filter-hint" id="statFilterHint" hidden>
+          <i class="fa-solid fa-filter"></i><span id="statFilterHintText"></span>
+          <button type="button" id="statFilterClearBtn">Clear filter</button>
+        </div>
 
         <div class="requests-search">
           <i class="fa-solid fa-magnifying-glass requests-search-icon"></i>
-          <input type="text" id="requestsSearchInput" placeholder="Search by ID, Type, Matter No, Status, Amount...">
+          <input type="text" id="requestsSearchInput" placeholder="Search by ID, Type, Matter No, Created By, Status, Amount, Payee, Date...">
           <button type="button" class="requests-search-clear" id="requestsSearchClear" hidden title="Clear search"><i class="fa-solid fa-xmark"></i></button>
         </div>
 
@@ -1146,6 +1195,8 @@
                 <tr>
                   <th>ID</th>
                   <th>Type</th>
+                  <th>Matter No</th>
+                  <th>Created By</th>
                   <th>Payee</th>
                   <th>Amount</th>
                   <th>Date</th>
@@ -1157,6 +1208,11 @@
             </table>
           </div>
           <div class="empty-state" id="requestsPendingEmpty" hidden><i class="fa-solid fa-inbox"></i>No pending requests right now.</div>
+          <div class="pagination" id="pendingPagination" hidden>
+            <button type="button" class="pagination-btn" id="pendingPrevBtn" aria-label="Previous page"><i class="fa-solid fa-chevron-left"></i></button>
+            <span class="pagination-info" id="pendingPageInfo">Page 1 of 1</span>
+            <button type="button" class="pagination-btn" id="pendingNextBtn" aria-label="Next page"><i class="fa-solid fa-chevron-right"></i></button>
+          </div>
         </div>
 
         <div class="card">
@@ -1176,6 +1232,8 @@
                 <tr>
                   <th>ID</th>
                   <th>Type</th>
+                  <th>Matter No</th>
+                  <th>Created By</th>
                   <th>Payee</th>
                   <th>Amount</th>
                   <th>Date</th>
@@ -1187,6 +1245,11 @@
             </table>
           </div>
           <div class="empty-state" id="requestsCompletedEmpty" hidden><i class="fa-solid fa-inbox"></i>No completed or rejected requests yet.</div>
+          <div class="pagination" id="completedPagination" hidden>
+            <button type="button" class="pagination-btn" id="completedPrevBtn" aria-label="Previous page"><i class="fa-solid fa-chevron-left"></i></button>
+            <span class="pagination-info" id="completedPageInfo">Page 1 of 1</span>
+            <button type="button" class="pagination-btn" id="completedNextBtn" aria-label="Next page"><i class="fa-solid fa-chevron-right"></i></button>
+          </div>
         </div>
       </div>
     </section>
@@ -1226,6 +1289,11 @@
             </table>
           </div>
           <div class="empty-state" id="accountsPendingEmpty" hidden><i class="fa-solid fa-inbox"></i>No requests waiting on Accounts right now.</div>
+          <div class="pagination" id="accountsPagination" hidden>
+            <button type="button" class="pagination-btn" id="accountsPrevBtn" aria-label="Previous page"><i class="fa-solid fa-chevron-left"></i></button>
+            <span class="pagination-info" id="accountsPageInfo">Page 1 of 1</span>
+            <button type="button" class="pagination-btn" id="accountsNextBtn" aria-label="Next page"><i class="fa-solid fa-chevron-right"></i></button>
+          </div>
         </div>
       </div>
     </section>
@@ -1745,13 +1813,26 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     return currencySelect.value !== 'MYR' ? bankNameManual : bankNameSelect;
   }
 
-  // Bank Draft/Cheque aren't paid into a specific bank account, so Bank Name doesn't apply.
+  var bankAccountNumberInput = document.getElementById('bankAccountNumber');
+  var bankAccountNumberLabel = document.getElementById('bankAccountNumberLabel');
+
+  // Bank Draft/Cheque/FPX/JomPAY aren't paid into a specific bank account the same way a
+  // transfer is, so Bank Name doesn't apply. FPX also has no concept of an account number
+  // at all (it's an online banking redirect, not a destination account), so that field is
+  // disabled too; JomPAY pays into a biller code rather than an account number, so that
+  // field stays active but is relabelled rather than disabled.
   function updateBankNameAvailability(){
     var mode = modeOfPaymentSelect.value.toLowerCase();
-    var disable = mode.indexOf('bank draft') !== -1 || mode.indexOf('cheque') !== -1;
-    bankNameSelect.disabled = disable;
-    bankNameSearchInput.disabled = disable;
-    bankNameManual.disabled = disable;
+    var isFPX = mode.indexOf('fpx') !== -1;
+    var isJomPay = mode.indexOf('jompay') !== -1;
+    var disableBankName = isFPX || isJomPay || mode.indexOf('bank draft') !== -1 || mode.indexOf('cheque') !== -1;
+
+    bankNameSelect.disabled = disableBankName;
+    bankNameSearchInput.disabled = disableBankName;
+    bankNameManual.disabled = disableBankName;
+
+    bankAccountNumberInput.disabled = isFPX;
+    bankAccountNumberLabel.textContent = isJomPay ? 'Bank Account Number/Biller Code *' : 'Bank Account Number *';
   }
   modeOfPaymentSelect.addEventListener('change', updateBankNameAvailability);
   updateBankNameAvailability();
@@ -1842,7 +1923,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     req(modeOfPaymentSelect, 'Mode Of Payment is required.');
     req(activeBankNameField(), 'Bank Name is required.');
     req(document.getElementById('bankAccountNumber'), 'Bank account number is required.');
-    req(lawyerInChargeInput, 'Lawyer in charge is required.');
+    req(lawyerInChargeInput, 'Lawyer/HOD is required.');
     req(document.getElementById('partnerInCharge'), 'Partner-In-Charge is required.');
     // LawyerInCharge/PartnerInCharge are SharePoint Person columns, so free-typed text that
     // doesn't match a real directory entry (no email resolved) can't actually be saved there.
@@ -1853,7 +1934,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         errors.push('Please pick the ' + label + ' from the suggestions list.');
       }
     }
-    reqResolvedPerson('lawyerInCharge', 'lawyerInChargeEmail', 'Lawyer-In-Charge / HOD');
+    reqResolvedPerson('lawyerInCharge', 'lawyerInChargeEmail', 'Lawyer/HOD');
     reqResolvedPerson('partnerInCharge', 'partnerInChargeEmail', 'Partner-In-Charge');
 
     if (!seniorPartnerField.hidden){
@@ -2022,6 +2103,45 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var accountsPendingBody = document.getElementById('accountsPendingBody');
   var accountsPendingEmpty = document.getElementById('accountsPendingEmpty');
   var accountsCountBadge = document.getElementById('accountsCountBadge');
+
+  var REQUESTS_PAGE_SIZE = 10;
+  var pendingPage = 1, completedPage = 1, accountsPage = 1;
+  var pendingPagination = document.getElementById('pendingPagination');
+  var pendingPageInfo = document.getElementById('pendingPageInfo');
+  var pendingPrevBtn = document.getElementById('pendingPrevBtn');
+  var pendingNextBtn = document.getElementById('pendingNextBtn');
+  var completedPagination = document.getElementById('completedPagination');
+  var completedPageInfo = document.getElementById('completedPageInfo');
+  var completedPrevBtn = document.getElementById('completedPrevBtn');
+  var completedNextBtn = document.getElementById('completedNextBtn');
+  var accountsPagination = document.getElementById('accountsPagination');
+  var accountsPageInfo = document.getElementById('accountsPageInfo');
+  var accountsPrevBtn = document.getElementById('accountsPrevBtn');
+  var accountsNextBtn = document.getElementById('accountsNextBtn');
+
+  // Slices a full list of matched indices down to the current page, clamping the page number
+  // in case the underlying data shrank (e.g. a search narrowed the results) since it was set.
+  function paginateIndices(indices, page){
+    var totalPages = Math.max(1, Math.ceil(indices.length / REQUESTS_PAGE_SIZE));
+    var clampedPage = Math.min(Math.max(1, page), totalPages);
+    var start = (clampedPage - 1) * REQUESTS_PAGE_SIZE;
+    return { pageIndices: indices.slice(start, start + REQUESTS_PAGE_SIZE), page: clampedPage, totalPages: totalPages };
+  }
+
+  function updatePaginationControls(container, infoEl, prevBtn, nextBtn, page, totalPages){
+    container.hidden = totalPages <= 1;
+    infoEl.textContent = 'Page ' + page + ' of ' + totalPages;
+    prevBtn.disabled = page <= 1;
+    nextBtn.disabled = page >= totalPages;
+  }
+
+  pendingPrevBtn.addEventListener('click', function(){ pendingPage--; renderRequestsList(); });
+  pendingNextBtn.addEventListener('click', function(){ pendingPage++; renderRequestsList(); });
+  completedPrevBtn.addEventListener('click', function(){ completedPage--; renderRequestsList(); });
+  completedNextBtn.addEventListener('click', function(){ completedPage++; renderRequestsList(); });
+  accountsPrevBtn.addEventListener('click', function(){ accountsPage--; renderRequestsList(); });
+  accountsNextBtn.addEventListener('click', function(){ accountsPage++; renderRequestsList(); });
+
   var requestDetailsModal = document.getElementById('requestDetailsModal');
   var requestDetailsBody = document.getElementById('requestDetailsBody');
   var closeRequestDetailsBtn = document.getElementById('closeRequestDetailsBtn');
@@ -2040,6 +2160,8 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     return '<tr>' +
       '<td data-label="ID"><span class="ref-chip">' + escapeHtml(reqItem.ref) + '</span></td>' +
       '<td data-label="Type"><span class="type-pill ' + escapeHtml(reqItem.type) + '">' + escapeHtml(TYPE_LABELS[reqItem.type] || reqItem.type) + '</span></td>' +
+      '<td data-label="Matter No">' + escapeHtml((reqItem.formData && reqItem.formData.matterNumber) || '-') + '</td>' +
+      '<td data-label="Created By">' + escapeHtml(reqItem.createdBy || '-') + '</td>' +
       '<td data-label="Payee">' + escapeHtml(reqItem.payee) + '</td>' +
       '<td data-label="Amount">' + escapeHtml(reqItem.currency) + ' ' + escapeHtml(reqItem.amount) + '</td>' +
       '<td data-label="Date">' + escapeHtml(reqItem.date) + '</td>' +
@@ -2065,6 +2187,45 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var pendingCountBadge = document.getElementById('pendingCountBadge');
   var completedCountBadge = document.getElementById('completedCountBadge');
 
+  // Clicking a stat card filters the two tables down to that bucket - clicking the same one
+  // again (or the clear link) goes back to showing everything. Only affects Pending/Completed
+  // & Rejected, not the separate Accounts Approval table.
+  var requestsStatusFilter = null;
+  var STAT_FILTER_LABELS = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected' };
+  var statCards = Array.prototype.slice.call(document.querySelectorAll('.stat-card[data-filter]'));
+  var statFilterHint = document.getElementById('statFilterHint');
+  var statFilterHintText = document.getElementById('statFilterHintText');
+  var statFilterClearBtn = document.getElementById('statFilterClearBtn');
+
+  function matchesStatusFilter(reqItem){
+    if (!requestsStatusFilter) return true;
+    if (requestsStatusFilter === 'pending') return PENDING_STATUSES.indexOf(reqItem.status) !== -1;
+    if (requestsStatusFilter === 'approved') return reqItem.status === 'approved' || reqItem.status === 'completed';
+    if (requestsStatusFilter === 'rejected') return reqItem.status === 'rejected';
+    return true;
+  }
+
+  function setStatusFilter(filter){
+    requestsStatusFilter = (requestsStatusFilter === filter) ? null : filter;
+    statCards.forEach(function(card){
+      var isActive = card.getAttribute('data-filter') === requestsStatusFilter;
+      card.classList.toggle('active', isActive);
+      card.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+    statFilterHint.hidden = !requestsStatusFilter;
+    if (requestsStatusFilter) statFilterHintText.textContent = 'Showing only ' + STAT_FILTER_LABELS[requestsStatusFilter] + ' requests.';
+    pendingPage = 1; completedPage = 1;
+    renderRequestsList();
+  }
+
+  statCards.forEach(function(card){
+    card.addEventListener('click', function(){ setStatusFilter(card.getAttribute('data-filter')); });
+    card.addEventListener('keydown', function(e){
+      if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); setStatusFilter(card.getAttribute('data-filter')); }
+    });
+  });
+  statFilterClearBtn.addEventListener('click', function(){ setStatusFilter(requestsStatusFilter); });
+
   var requestsSearchInput = document.getElementById('requestsSearchInput');
   var requestsSearchClear = document.getElementById('requestsSearchClear');
   var requestsSearchQuery = '';
@@ -2080,7 +2241,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       TYPE_LABELS[reqItem.type] || reqItem.type,
       String(matterNumber),
       meta ? meta.label : reqItem.status,
-      reqItem.currency + ' ' + reqItem.amount
+      reqItem.currency + ' ' + reqItem.amount,
+      reqItem.payee,
+      reqItem.date,
+      reqItem.createdBy || ''
     ].join(' ').toLowerCase();
     return haystack.indexOf(requestsSearchQuery) !== -1;
   }
@@ -2088,45 +2252,60 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   requestsSearchInput.addEventListener('input', function(){
     requestsSearchQuery = requestsSearchInput.value.trim().toLowerCase();
     requestsSearchClear.hidden = !requestsSearchInput.value;
+    pendingPage = 1; completedPage = 1;
     renderRequestsList();
   });
   requestsSearchClear.addEventListener('click', function(){
     requestsSearchInput.value = '';
     requestsSearchQuery = '';
     requestsSearchClear.hidden = true;
+    pendingPage = 1; completedPage = 1;
     renderRequestsList();
   });
 
   function renderRequestsList(){
-    var pendingHtml = '', completedHtml = '', accountsHtml = '';
     // Stat cards always reflect the true overall totals; the section count badges next to
-    // each table heading reflect what's actually visible under the current search.
+    // each table heading reflect what's actually visible under the current search (across all
+    // pages, not just the page currently showing).
     var pendingCount = 0, approvedCount = 0, rejectedCount = 0;
-    var pendingVisible = 0, completedVisible = 0, accountsVisible = 0;
+    var pendingIndices = [], completedIndices = [], accountsIndices = [];
     SUBMITTED_REQUESTS.forEach(function(reqItem, idx){
-      var matches = reqItemMatchesSearch(reqItem);
+      var matches = reqItemMatchesSearch(reqItem) && matchesStatusFilter(reqItem);
       if (PENDING_STATUSES.indexOf(reqItem.status) !== -1){
         pendingCount++;
-        if (matches){ pendingHtml += requestRowHtml(reqItem, idx); pendingVisible++; }
+        if (matches) pendingIndices.push(idx);
       } else {
         if (reqItem.status === 'approved' || reqItem.status === 'completed') approvedCount++;
         else if (reqItem.status === 'rejected') rejectedCount++;
-        if (matches){ completedHtml += requestRowHtml(reqItem, idx); completedVisible++; }
+        if (matches) completedIndices.push(idx);
       }
-      if (reqItem.readyForAccounts){ accountsHtml += accountsRowHtml(reqItem, idx); accountsVisible++; }
+      if (reqItem.readyForAccounts) accountsIndices.push(idx);
     });
-    requestsPendingBody.innerHTML = pendingHtml;
-    requestsPendingEmpty.hidden = pendingHtml !== '';
-    requestsCompletedBody.innerHTML = completedHtml;
-    requestsCompletedEmpty.hidden = completedHtml !== '';
-    accountsPendingBody.innerHTML = accountsHtml;
-    accountsPendingEmpty.hidden = accountsHtml !== '';
-    accountsCountBadge.textContent = accountsVisible;
+
+    var pendingResult = paginateIndices(pendingIndices, pendingPage);
+    pendingPage = pendingResult.page;
+    requestsPendingBody.innerHTML = pendingResult.pageIndices.map(function(idx){ return requestRowHtml(SUBMITTED_REQUESTS[idx], idx); }).join('');
+    requestsPendingEmpty.hidden = pendingIndices.length !== 0;
+    updatePaginationControls(pendingPagination, pendingPageInfo, pendingPrevBtn, pendingNextBtn, pendingResult.page, pendingResult.totalPages);
+
+    var completedResult = paginateIndices(completedIndices, completedPage);
+    completedPage = completedResult.page;
+    requestsCompletedBody.innerHTML = completedResult.pageIndices.map(function(idx){ return requestRowHtml(SUBMITTED_REQUESTS[idx], idx); }).join('');
+    requestsCompletedEmpty.hidden = completedIndices.length !== 0;
+    updatePaginationControls(completedPagination, completedPageInfo, completedPrevBtn, completedNextBtn, completedResult.page, completedResult.totalPages);
+
+    var accountsResult = paginateIndices(accountsIndices, accountsPage);
+    accountsPage = accountsResult.page;
+    accountsPendingBody.innerHTML = accountsResult.pageIndices.map(function(idx){ return accountsRowHtml(SUBMITTED_REQUESTS[idx], idx); }).join('');
+    accountsPendingEmpty.hidden = accountsIndices.length !== 0;
+    updatePaginationControls(accountsPagination, accountsPageInfo, accountsPrevBtn, accountsNextBtn, accountsResult.page, accountsResult.totalPages);
+
+    accountsCountBadge.textContent = accountsIndices.length;
     statPendingCount.textContent = pendingCount;
     statApprovedCount.textContent = approvedCount;
     statRejectedCount.textContent = rejectedCount;
-    pendingCountBadge.textContent = pendingVisible;
-    completedCountBadge.textContent = completedVisible;
+    pendingCountBadge.textContent = pendingIndices.length;
+    completedCountBadge.textContent = completedIndices.length;
   }
 
   var requestsLoadError = document.getElementById('requestsLoadError');
@@ -2180,9 +2359,26 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       return '<span class="status-badge ' + badgeMeta.cls + '"><i class="fa-solid ' + badgeMeta.icon + '"></i> ' + escapeHtml(displayText || status) + '</span>';
     }
 
-    function pushPersonRows(rows, roleLabel, statusLabel, name, status, displayStatusText){
-      rows.push([roleLabel, val(name)]);
-      rows.push(status ? [statusLabel, statusBadgeHtml(status, displayStatusText), true] : [statusLabel, PLACEHOLDER]);
+    // Each approver gets its own card (name, status, and - if they left one - their remarks)
+    // rather than a flat label/value list, so a remark reads as clearly belonging to the
+    // specific stage that wrote it instead of being lumped into one combined box at the end.
+    function approverCardHtml(roleLabel, name, status, displayStatusText, remarks){
+      var displayName = val(name);
+      var isNamePlaceholder = displayName === PLACEHOLDER;
+      var statusHtml = status
+        ? statusBadgeHtml(status, displayStatusText)
+        : '<span class="approval-status-muted">' + PLACEHOLDER + '</span>';
+      var remarksHtml = remarks
+        ? '<div class="approval-remarks"><i class="fa-solid fa-comment-dots"></i> ' + escapeHtml(remarks) + '</div>'
+        : '';
+      return '<div class="approval-card">' +
+          '<div class="approval-card-top">' +
+            '<span class="approval-role">' + escapeHtml(roleLabel) + '</span>' +
+            statusHtml +
+          '</div>' +
+          '<div class="approval-card-name' + (isNamePlaceholder ? ' value-muted' : '') + '">' + escapeHtml(displayName) + '</div>' +
+          remarksHtml +
+        '</div>';
     }
 
     // The Lawyer stage is a verification step, not an approval one - "Approved" reads as
@@ -2194,6 +2390,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
     var overviewRows = [
       ['Request Type', TYPE_LABELS[reqItem.type] || reqItem.type],
+      ['Created By', val(reqItem.createdBy)],
       ['Payee', reqItem.payee],
       ['Amount', reqItem.currency + ' ' + reqItem.amount],
       ['Date Submitted', reqItem.date]
@@ -2209,12 +2406,12 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     function fmtAmount(n){
       return reqItem.currency + ' ' + (parseFloat(n) || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
-    var approvalRows = [];
-    pushPersonRows(approvalRows, 'Lawyer-In-Charge / HOD', 'Lawyer Status', reqItem.lawyerInCharge, reqItem.lawyerStatus, lawyerStatusDisplay(reqItem.lawyerStatus));
-    pushPersonRows(approvalRows, 'Partner-In-Charge', 'Partner Status', reqItem.partnerInCharge, reqItem.partnerStatus);
-    pushPersonRows(approvalRows, 'Senior Partner 1', 'Senior Partner 1 Status', reqItem.seniorPartner, reqItem.seniorPartnerStatus);
-    pushPersonRows(approvalRows, 'Senior Partner 2', 'Senior Partner 2 Status', reqItem.seniorPartner2, reqItem.seniorPartner2Status);
-    pushPersonRows(approvalRows, 'Accounts', 'Accounts Status', reqItem.accountsInCharge, reqItem.accountsStatus);
+    var approvalCardsHtml =
+      approverCardHtml('Lawyer/HOD', reqItem.lawyerInCharge, reqItem.lawyerStatus, lawyerStatusDisplay(reqItem.lawyerStatus), reqItem.lawyerRemarks) +
+      approverCardHtml('Partner-In-Charge', reqItem.partnerInCharge, reqItem.partnerStatus, undefined, reqItem.partnerRemarks) +
+      approverCardHtml('Senior Partner 1', reqItem.seniorPartner, reqItem.seniorPartnerStatus, undefined, reqItem.seniorPartnerRemarks) +
+      approverCardHtml('Senior Partner 2', reqItem.seniorPartner2, reqItem.seniorPartner2Status, undefined, reqItem.seniorPartner2Remarks) +
+      approverCardHtml('Accounts', reqItem.accountsInCharge, reqItem.accountsStatus, undefined, reqItem.accountsRemarks);
 
     var html = '<div class="rd-hero">' +
         '<span class="ref-chip">ID : ' + escapeHtml(reqItem.ref) + '</span>' +
@@ -2232,14 +2429,16 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         (lineItems.length > 1 ? '<tr class="rd-table-total"><td colspan="2">Total</td><td>' + escapeHtml(fmtAmount(total)) + '</td></tr>' : '') +
         '</tbody></table></div>';
     }
-    html += '<div class="rd-section"><div class="rd-section-title">Approval</div>' + rowsHtml(approvalRows) + '</div>';
-    if (reqItem.note){
-      var isRejected = reqItem.status === 'rejected';
-      html += '<div class="rd-note' + (isRejected ? ' rd-note-rejected' : '') + '">' +
-        '<i class="fa-solid ' + (isRejected ? 'fa-triangle-exclamation' : 'fa-circle-info') + '"></i>' +
-        '<span><strong>' + (isRejected ? 'Rejection Remarks' : 'Remarks') + '</strong>' + escapeHtml(reqItem.note) + '</span>' +
-        '</div>';
-    }
+    var attachments = reqItem.attachments || [];
+    html += '<div class="rd-section"><div class="rd-section-title">Attachments</div>' +
+      (attachments.length
+        ? '<div class="rd-attachments">' + attachments.map(function(a){
+            return '<a class="rd-attachment" href="' + escapeHtml(a.url) + '" target="_blank" rel="noopener">' +
+              '<i class="fa-solid fa-paperclip"></i> ' + escapeHtml(a.name) + '</a>';
+          }).join('') + '</div>'
+        : '<div class="rd-no-attachments">' + PLACEHOLDER + '</div>') +
+      '</div>';
+    html += '<div class="rd-section rd-section-approval"><div class="rd-section-title">Approval</div>' + approvalCardsHtml + '</div>';
 
     requestDetailsBody.innerHTML = html;
     resubmitRequestBtn.hidden = !(reqItem.status === 'rejected' && reqItem.formData);
@@ -2352,6 +2551,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var reqItem = SUBMITTED_REQUESTS[currentDetailsIdx];
     if (!reqItem || !reqItem.formData) return;
     applyFormData(reqItem.formData);
+    // Edit & Resubmit already loads this exact request's data - surfacing its own ID in the
+    // Copy From field too just saves having to go look it up again if they want to re-pull it.
+    copyFromIdInput.value = reqItem.ref;
+    copyFromIdError.hidden = true;
     requestDetailsModal.hidden = true;
     document.querySelector('.nav-item[data-view="submit"]').click();
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2797,8 +3000,11 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     if (lc.indexOf('reject') !== -1 || lc.indexOf('declin') !== -1) return 'rejected';
     if (lc.indexOf('complet') !== -1) return 'completed';
     // "Not Applicable" (a real PartnerStatus choice, e.g. requests below a threshold that
-    // don't need partner sign-off) is a non-issue, same as an actual approval.
-    if (lc.indexOf('approv') !== -1 || lc.indexOf('not applicable') !== -1) return 'approved';
+    // don't need partner sign-off) is a non-issue, same as an actual approval. "Verified" is
+    // the Lawyer stage's own choice text for the same outcome (that stage verifies, it
+    // doesn't approve - see lawyerStatusDisplay) - without this it fell through to the
+    // default 'pending' bucket and rendered orange even once verification was done.
+    if (lc.indexOf('approv') !== -1 || lc.indexOf('not applicable') !== -1 || lc.indexOf('verif') !== -1) return 'approved';
     if (lc.indexOf('timed out') !== -1 || lc.indexOf('timeout') !== -1) return 'timed-out';
     return 'pending';
   }
@@ -3158,6 +3364,40 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     });
   }
 
+  // Attachments were only ever uploaded (uploadAttachmentsForItem) - nothing ever read them
+  // back, so they never showed anywhere they're viewed (View Requests, Accounts Approval -
+  // both share openRequestDetails). Graph's $expand=fields doesn't surface native SharePoint
+  // attachments at all, so this reads them back the same way they're written: classic REST,
+  // here using $expand=AttachmentFiles to pull every Master item's attachments in one request
+  // rather than one call per row.
+  function fetchAllAttachments(){
+    var url = 'https://' + SP_HOSTNAME + SP_SITE_PATH + "/_api/web/lists/getbytitle('" +
+      encodeURIComponent(SP_MASTER_LIST_NAME) + "')/items?$select=Id,AttachmentFiles/FileName,AttachmentFiles/ServerRelativeUrl&$expand=AttachmentFiles&$top=500";
+    return getSpRestToken().then(function(token){
+      return fetch(url, {
+        headers: {
+          'Authorization': 'Bearer ' + token.accessToken,
+          'Accept': 'application/json;odata=nometadata'
+        }
+      });
+    }).then(function(res){
+      return res.ok ? res.json() : { value: [] };
+    }).then(function(result){
+      var byId = {};
+      (result.value || []).forEach(function(item){
+        if (item.AttachmentFiles && item.AttachmentFiles.length){
+          byId[item.Id] = item.AttachmentFiles.map(function(a){
+            return { name: a.FileName, url: 'https://' + SP_HOSTNAME + a.ServerRelativeUrl };
+          });
+        }
+      });
+      return byId;
+    }).catch(function(err){
+      console.warn('Could not load attachments.', err);
+      return {};
+    });
+  }
+
   // LawyerInCharge/PartnerInCharge are Person/Group columns - Graph's list-items API won't
   // accept plain display-name text for those (that was silently not being captured).
   // Resolving the picker's email through the classic REST /_api/web/ensureuser endpoint
@@ -3262,6 +3502,19 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   };
 
   // ---------- Read (View Requests) ----------
+  // createdDateTime comes back as a UTC ISO timestamp - render it in Malaysia time (not just
+  // the date, and not whatever timezone the viewer's own device happens to be set to) so
+  // "submitted at 11:58pm" vs "just after midnight" is visible and consistent for every staff
+  // member regardless of where they're opening this from.
+  function formatDateTime(iso){
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return iso.slice(0, 10);
+    var tz = { timeZone: 'Asia/Kuala_Lumpur' };
+    return d.toLocaleDateString('en-MY', Object.assign({ day: '2-digit', month: 'short', year: 'numeric' }, tz)) +
+      ', ' + d.toLocaleTimeString('en-MY', Object.assign({ hour: '2-digit', minute: '2-digit' }, tz));
+  }
+
   window.spFetchRequests = function(){
     return Promise.all([
       getSpListId(SP_MASTER_LIST_NAME),
@@ -3275,12 +3528,14 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
           graphRequest('/sites/' + siteId + '/lists/' + ids[0] + '/items?$expand=fields&$top=200'),
           // Details has no direct filter-by-MasterID here (that column isn't indexed either) -
           // pull them all in one shot and group client-side instead of one query per Master row.
-          graphRequest('/sites/' + siteId + '/lists/' + ids[1] + '/items?$expand=fields&$top=999')
+          graphRequest('/sites/' + siteId + '/lists/' + ids[1] + '/items?$expand=fields&$top=999'),
+          fetchAllAttachments()
         ]);
       });
     }).then(function(results){
       var masterRows = (results[0] && results[0].value) || [];
       var detailRows = (results[1] && results[1].value) || [];
+      var attachmentsByMasterId = results[2] || {};
       masterRows.sort(function(a, b){ return (b.createdDateTime || '').localeCompare(a.createdDateTime || ''); });
 
       var detailsByMaster = {};
@@ -3316,15 +3571,19 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
           var f = row.fields || {};
           var typeInfo = inferTypeFromText(f.RequestType);
           var lineItems = detailsByMaster[row.id] || [];
-          var status = classifyApprovalStatus(f.Status);
+          // Master's own Status column is the normal source of truth (see the note near the
+          // top of this block), but whatever external process sets it doesn't reliably flip
+          // it to Rejected when a request is rejected at the Lawyer stage specifically (the
+          // individual LawyerStatus correctly shows Rejected in the details modal, but
+          // Status itself was observed staying "Pending" - confirmed 2026-10-15). A
+          // rejection at ANY stage is unambiguous, so it overrides whatever Status says
+          // rather than waiting on that external process to catch up.
+          var anyStageRejected = [f.LawyerStatus, f.PartnerStatus, f.SeniorPartner1Status, f.SeniorPartner2Status, f.AccountsStatus].some(function(s){
+            return classifyApprovalStatus(s) === 'rejected';
+          });
+          var status = anyStageRejected ? 'rejected' : classifyApprovalStatus(f.Status);
           var isForeign = (f.Currency || '').toUpperCase() !== 'MYR';
           var bankNameValue = isForeign ? (f.BankNameForeign || '') : (f.BankName || '');
-          var noteParts = [];
-          if (f.LawyerRemarks) noteParts.push('Lawyer: ' + f.LawyerRemarks);
-          if (f.PartnerRemarks) noteParts.push('Partner: ' + f.PartnerRemarks);
-          if (f.SeniorPartner1Remarks) noteParts.push('Senior Partner 1: ' + f.SeniorPartner1Remarks);
-          if (f.SeniorPartner2Remarks) noteParts.push('Senior Partner 2: ' + f.SeniorPartner2Remarks);
-          if (f.AccountsRemarks) noteParts.push('Accounts: ' + f.AccountsRemarks);
           var lawyerUser = userById[f.LawyerInChargeLookupId] || {};
           var partnerUser = userById[f.PartnerInChargeLookupId] || {};
           var seniorPartnerUser = userById[f.SeniorPartner1LookupId] || {};
@@ -3361,7 +3620,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
             amount: (parseFloat(f.TotalAmount) || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
             currency: f.Currency || '',
             status: status,
-            date: (row.createdDateTime || '').slice(0, 10),
+            date: formatDateTime(row.createdDateTime),
             lawyerInCharge: lawyerName,
             lawyerStatus: f.LawyerStatus || '',
             partnerInCharge: partnerName,
@@ -3374,9 +3633,15 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
             accountsStatus: f.AccountsStatus || '',
             readyForAccounts: readyForAccounts,
             submitterEmail: submitterUser.email || '',
+            createdBy: submitterUser.displayName || '',
             bankName: bankNameValue,
             bankAccountNumber: f.BankNo || '',
-            note: noteParts.join(' | ') || undefined,
+            lawyerRemarks: f.LawyerRemarks || '',
+            partnerRemarks: f.PartnerRemarks || '',
+            seniorPartnerRemarks: f.SeniorPartner1Remarks || '',
+            seniorPartner2Remarks: f.SeniorPartner2Remarks || '',
+            accountsRemarks: f.AccountsRemarks || '',
+            attachments: attachmentsByMasterId[row.id] || [],
             formData: {
               nominalType: typeInfo.nominalType,
               staffSubtype: typeInfo.staffSubtype,

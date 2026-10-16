@@ -13,7 +13,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.10.15.10';
+  window.__EVOUCHER_VERSION__ = '2026.10.16.1';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -3228,6 +3228,12 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       // Setting hiddenEmail afterwards used to get wiped out immediately by that same
       // listener, so a genuine click on a suggestion still left hiddenEmail empty.
       input.dispatchEvent(new Event('input', { bubbles: true }));
+      // That dispatch just re-ran the input listener below, which (re-)armed its own debounced
+      // runSearch() for whatever's now in the field - i.e. the name just picked. Left alone,
+      // that search would resolve ~300ms later, match the very person just selected, and pop
+      // the suggestion box back open right after it was closed. Cancel it here, after the
+      // dispatch has synchronously set it.
+      clearTimeout(debounceTimer);
       if (hiddenEmail) hiddenEmail.value = personEmail(p);
       input.dispatchEvent(new Event('change', { bubbles: true }));
     }

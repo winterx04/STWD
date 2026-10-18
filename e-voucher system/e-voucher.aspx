@@ -13,7 +13,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.10.16.1';
+  window.__EVOUCHER_VERSION__ = '2026.10.17.1';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -1020,7 +1020,7 @@
                 </div>
               </div>
               <div class="field">
-                <label for="partnerInCharge">Partner-In-Charge *</label>
+                <label for="partnerInCharge" id="partnerInChargeLabel">Partner-In-Charge *</label>
                 <div class="people-picker" id="partnerInChargePicker">
                   <input type="text" id="partnerInCharge" autocomplete="off" placeholder="Click or type to search..." required>
                   <input type="hidden" id="partnerInChargeEmail">
@@ -1711,6 +1711,14 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var seniorPartner2Field = document.getElementById('seniorPartner2Field');
   var seniorPartnerInput = document.getElementById('seniorPartner');
   var seniorPartner2Input = document.getElementById('seniorPartner2');
+  var partnerInChargeLabel = document.getElementById('partnerInChargeLabel');
+
+  // Office Related has no separate Lawyer/HOD step (see above), so the same Partner-In-Charge
+  // picker/field does double duty as the department head's sign-off for Office requests - it
+  // reads as "HOD" there instead, even though it's the same underlying person field and column.
+  function partnerInChargeLabelText(){
+    return nominalType.value === 'office' ? 'HOD' : 'Partner-In-Charge';
+  }
 
   function updateSeniorPartnerAvailability(total){
     var isOffice = nominalType.value === 'office';
@@ -1718,6 +1726,8 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var needSP1 = isOffice || (nominalType.value === 'matter' && isHighValue);
     var needSP2 = isOffice && isHighValue;
     var needLawyer = !isOffice;
+
+    partnerInChargeLabel.textContent = partnerInChargeLabelText() + ' *';
 
     lawyerInChargeField.hidden = !needLawyer;
     lawyerInChargeInput.required = needLawyer;
@@ -1924,7 +1934,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     req(activeBankNameField(), 'Bank Name is required.');
     req(document.getElementById('bankAccountNumber'), 'Bank account number is required.');
     req(lawyerInChargeInput, 'Lawyer/HOD is required.');
-    req(document.getElementById('partnerInCharge'), 'Partner-In-Charge is required.');
+    req(document.getElementById('partnerInCharge'), partnerInChargeLabelText() + ' is required.');
     // LawyerInCharge/PartnerInCharge are SharePoint Person columns, so free-typed text that
     // doesn't match a real directory entry (no email resolved) can't actually be saved there.
     function reqResolvedPerson(inputId, emailId, label){
@@ -1935,7 +1945,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       }
     }
     reqResolvedPerson('lawyerInCharge', 'lawyerInChargeEmail', 'Lawyer/HOD');
-    reqResolvedPerson('partnerInCharge', 'partnerInChargeEmail', 'Partner-In-Charge');
+    reqResolvedPerson('partnerInCharge', 'partnerInChargeEmail', partnerInChargeLabelText());
 
     if (!seniorPartnerField.hidden){
       req(seniorPartnerInput, 'Senior Partner 1 is required.');
@@ -2406,9 +2416,13 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     function fmtAmount(n){
       return reqItem.currency + ' ' + (parseFloat(n) || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
+    // Office Related requests never have a Lawyer/HOD stage of their own (see
+    // updateSeniorPartnerAvailability) - the Partner-In-Charge field does that job instead for
+    // those requests, so it reads as "HOD" here too, matching the submit form's label.
+    var partnerCardLabel = reqItem.type === 'office' ? 'HOD' : 'Partner-In-Charge';
     var approvalCardsHtml =
       approverCardHtml('Lawyer/HOD', reqItem.lawyerInCharge, reqItem.lawyerStatus, lawyerStatusDisplay(reqItem.lawyerStatus), reqItem.lawyerRemarks) +
-      approverCardHtml('Partner-In-Charge', reqItem.partnerInCharge, reqItem.partnerStatus, undefined, reqItem.partnerRemarks) +
+      approverCardHtml(partnerCardLabel, reqItem.partnerInCharge, reqItem.partnerStatus, undefined, reqItem.partnerRemarks) +
       approverCardHtml('Senior Partner 1', reqItem.seniorPartner, reqItem.seniorPartnerStatus, undefined, reqItem.seniorPartnerRemarks) +
       approverCardHtml('Senior Partner 2', reqItem.seniorPartner2, reqItem.seniorPartner2Status, undefined, reqItem.seniorPartner2Remarks) +
       approverCardHtml('Accounts', reqItem.accountsInCharge, reqItem.accountsStatus, undefined, reqItem.accountsRemarks);

@@ -13,7 +13,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.10.17.1';
+  window.__EVOUCHER_VERSION__ = '2026.10.21.10';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -27,11 +27,20 @@
     // do even while signed in: MSAL's account/token cache lives in sessionStorage, which
     // survives a same-tab reload, so the user stays signed in across it.
     if (sessionStorage.getItem('evoucherReloadedFor') === window.__EVOUCHER_VERSION__) return;
+    // If the user starts typing/clicking before the version check below comes back, don't
+    // yank the page out from under them mid-keystroke - a forced reload landing right then
+    // would silently wipe whatever they'd just typed (e.g. a matter number), which reads as
+    // "my input doesn't show, a blank new voucher form appears instead" (reported 2026-10-20).
+    // Just skip the reload this one time; the next genuine page load/refresh (when they're
+    // not actively typing) will pick up the new version as normal.
+    var userInteracted = false;
+    document.addEventListener('input', function(){ userInteracted = true; }, { capture: true, once: true });
+    document.addEventListener('keydown', function(){ userInteracted = true; }, { capture: true, once: true });
     fetch(location.pathname + location.search, { cache: 'no-store' }).then(function(res){
       return res.text();
     }).then(function(html){
       var m = html.match(/__EVOUCHER_VERSION__\s*=\s*'([^']+)'/);
-      if (m && m[1] && m[1] !== window.__EVOUCHER_VERSION__){
+      if (m && m[1] && m[1] !== window.__EVOUCHER_VERSION__ && !userInteracted){
         sessionStorage.setItem('evoucherReloadedFor', m[1]);
         var url = new URL(location.href);
         url.searchParams.set('_v', Date.now());
@@ -475,7 +484,7 @@
   .cst-option.selected{background:var(--primary-light);color:var(--primary-dark);font-weight:600;}
   .cst-option-empty{color:var(--text-muted);cursor:default;}
   .cst-option-empty:hover{background:none;}
-  .cst-search-input{cursor:text;padding-right:34px;}
+  .cst-search-input{cursor:pointer;padding-right:34px;}
   .cst-search-caret{
     position:absolute;top:0;right:12px;bottom:0;
     display:flex;align-items:center;
@@ -485,7 +494,7 @@
   .cst-search-caret.open{transform:rotate(180deg);}
 
   .people-picker{position:relative;}
-  .people-picker input[type=text]{padding-right:34px;cursor:text;}
+  .people-picker input[type=text]{padding-right:34px;cursor:pointer;}
   .people-picker-caret{
     position:absolute;top:0;right:12px;bottom:0;
     display:flex;align-items:center;
@@ -638,10 +647,12 @@
     font-family:'Courier New',monospace;font-weight:700;color:var(--navy);
     background:var(--bg);padding:4px 10px;border-radius:6px;font-size:12.5px;letter-spacing:.2px;
   }
-  .type-pill{display:inline-block;padding:4px 10px;border-radius:20px;font-size:11.5px;font-weight:700;white-space:nowrap;}
-  .type-pill.matter{background:#e7effb;color:#1c5d99;}
-  .type-pill.office{background:#f1ecfb;color:#6a3fb5;}
-  .type-pill.staff{background:#fff4e0;color:#a3690a;}
+  .type-pill{display:inline-block;padding:4px 10px;border-radius:20px;font-size:11.5px;font-weight:700;white-space:nowrap;color:#fff;}
+  .type-pill.matter{background:#0078d4;}
+  .type-pill.office{background:#498205;}
+  .type-pill.staff{background:#9e6c00;}
+  .type-pill.staff-matter{background:#d4e7f6;color:#0c70bb;}
+  .type-pill.staff-office{background:#caf0cc;color:#437406;}
 
   .btn-view-row{border-radius:20px;}
   .btn-view-row:hover{background:var(--navy);color:var(--white);}
@@ -684,9 +695,16 @@
     width:56px;height:56px;border-radius:50%;background:#e9f7ee;color:var(--success);
     display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:28px;
   }
+  .modal-card .icon.icon-error{background:var(--danger-bg);color:var(--danger);}
   .modal-card h2{margin:0 0 8px;color:var(--navy);}
   .modal-card p{color:var(--text-muted);font-size:14px;margin:4px 0;}
   .modal-card strong{color:var(--navy);}
+  .modal-error-list{
+    text-align:left;margin:4px 0 0;padding-left:22px;color:var(--navy);font-size:13.5px;
+    max-height:40vh;overflow-y:auto;
+  }
+  .modal-error-list li{margin-bottom:8px;line-height:1.4;}
+  .modal-error-list li:last-child{margin-bottom:0;}
 
   .modal-card-details{max-width:900px;text-align:left;max-height:94vh;overflow-y:auto;}
   .modal-card-details h2{font-size:19px;margin-bottom:16px;}
@@ -735,6 +753,11 @@
   .rd-attachment:hover{text-decoration:underline;}
   .rd-attachment i{color:var(--text-muted);}
   .rd-no-attachments{font-size:13px;color:var(--text-muted);font-style:italic;padding:4px 0 12px;}
+  .rd-inline-note{
+    display:flex;gap:6px;align-items:flex-start;font-size:12.5px;color:var(--text-muted);
+    font-style:italic;padding:8px 0 10px;
+  }
+  .rd-inline-note i{margin-top:2px;}
   .rd-actions{margin-top:8px;display:flex;gap:10px;justify-content:flex-end;}
   @media (max-width:480px){.rd-actions{justify-content:stretch;}.rd-actions .btn{flex:1;}}
   .rd-remarks-box{
@@ -865,14 +888,6 @@
 
         <form id="voucherForm" novalidate>
 
-          <div id="errorSummary" class="alert alert-error" hidden>
-            <span>&#9888;</span>
-            <div>
-              <strong>Please fix the following before submitting:</strong>
-              <ul id="errorList"></ul>
-            </div>
-          </div>
-
           <div class="card copy-from-card">
             <div class="copy-from-row">
               <i class="fa-solid fa-copy copy-from-icon"></i>
@@ -946,6 +961,7 @@
                   <option>FPX</option>
                   <option>JomPAY</option>
                 </select>
+                <p class="hint warning" id="ibgLimitWarning" hidden>&#9888; InterBank GIRO (IBG) is not available for RM50,000.00 and above - please select Rentas instead.</p>
               </div>
               <div class="field">
                 <label for="bankName">Bank Name *</label>
@@ -996,6 +1012,7 @@
                   <option>Standard Chartered Saadiq Berhad</option>
                   <option>Sumitomo Mitsui Banking Corporation Malaysia Berhad</option>
                   <option>United Overseas Bank (Malaysia) Bhd (UOB)</option>
+                  <option>Others</option>
                 </select>
                 <input type="text" id="bankNameManual" placeholder="Type bank name" hidden>
                 <p class="hint" id="bankNameForeignHint" hidden>Foreign currency selected &mdash; please type the bank name manually.</p>
@@ -1013,7 +1030,7 @@
               <div class="field" id="lawyerInChargeField">
                 <label for="lawyerInCharge">Lawyer/HOD *</label>
                 <div class="people-picker" id="lawyerInChargePicker">
-                  <input type="text" id="lawyerInCharge" autocomplete="off" placeholder="Click or type to search..." required>
+                  <input type="text" id="lawyerInCharge" autocomplete="off" spellcheck="false" placeholder="Click or type to search..." required>
                   <input type="hidden" id="lawyerInChargeEmail">
                   <i class="fa-solid fa-chevron-down people-picker-caret"></i>
                   <div class="people-suggestions" id="lawyerInChargeSuggestions" hidden></div>
@@ -1022,7 +1039,7 @@
               <div class="field">
                 <label for="partnerInCharge" id="partnerInChargeLabel">Partner-In-Charge *</label>
                 <div class="people-picker" id="partnerInChargePicker">
-                  <input type="text" id="partnerInCharge" autocomplete="off" placeholder="Click or type to search..." required>
+                  <input type="text" id="partnerInCharge" autocomplete="off" spellcheck="false" placeholder="Click or type to search..." required>
                   <input type="hidden" id="partnerInChargeEmail">
                   <i class="fa-solid fa-chevron-down people-picker-caret"></i>
                   <div class="people-suggestions" id="partnerInChargeSuggestions" hidden></div>
@@ -1031,7 +1048,7 @@
               <div class="field" id="seniorPartnerField" hidden>
                 <label for="seniorPartner">Senior Partner 1 *</label>
                 <div class="people-picker" id="seniorPartnerPicker">
-                  <input type="text" id="seniorPartner" autocomplete="off" placeholder="Click or type to search...">
+                  <input type="text" id="seniorPartner" autocomplete="off" spellcheck="false" placeholder="Click or type to search...">
                   <input type="hidden" id="seniorPartnerEmail">
                   <i class="fa-solid fa-chevron-down people-picker-caret"></i>
                   <div class="people-suggestions" id="seniorPartnerSuggestions" hidden></div>
@@ -1040,7 +1057,7 @@
               <div class="field" id="seniorPartner2Field" hidden>
                 <label for="seniorPartner2">Senior Partner 2 *</label>
                 <div class="people-picker" id="seniorPartner2Picker">
-                  <input type="text" id="seniorPartner2" autocomplete="off" placeholder="Click or type to search...">
+                  <input type="text" id="seniorPartner2" autocomplete="off" spellcheck="false" placeholder="Click or type to search...">
                   <input type="hidden" id="seniorPartner2Email">
                   <i class="fa-solid fa-chevron-down people-picker-caret"></i>
                   <div class="people-suggestions" id="seniorPartner2Suggestions" hidden></div>
@@ -1336,6 +1353,18 @@
   </div>
 </div>
 
+<div class="modal" id="errorModal" hidden>
+  <div class="modal-card">
+    <button type="button" class="modal-close-x" id="closeErrorModalBtn" title="Close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    <div class="icon icon-error"><i class="fa-solid fa-triangle-exclamation"></i></div>
+    <h2>Please Fix The Following</h2>
+    <ul class="modal-error-list" id="errorList"></ul>
+    <div style="margin-top:18px;">
+      <button type="button" class="btn btn-primary" id="errorModalOkBtn">Got It</button>
+    </div>
+  </div>
+</div>
+
 <script>
 window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 </script>
@@ -1356,6 +1385,8 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var addRowBtn = document.getElementById('addRowBtn');
   var totalAmountField = document.getElementById('totalAmount');
   var staffCapWarning = document.getElementById('staffCapWarning');
+  var ibgLimitWarning = document.getElementById('ibgLimitWarning');
+  var IBG_LIMIT = 50000;
   var lineItemLimitWarning = document.getElementById('lineItemLimitWarning');
   var MAX_LINE_ITEMS = 5;
   var dropzone = document.getElementById('dropzone');
@@ -1366,8 +1397,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var copyFromIdBtn = document.getElementById('copyFromIdBtn');
   var copyFromIdError = document.getElementById('copyFromIdError');
   var form = document.getElementById('voucherForm');
-  var errorSummary = document.getElementById('errorSummary');
+  var errorModal = document.getElementById('errorModal');
   var errorList = document.getElementById('errorList');
+  var closeErrorModalBtn = document.getElementById('closeErrorModalBtn');
+  var errorModalOkBtn = document.getElementById('errorModalOkBtn');
   var resetBtn = document.getElementById('resetBtn');
   var successModal = document.getElementById('successModal');
   var closeModalBtn = document.getElementById('closeModalBtn');
@@ -1473,6 +1506,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var trigger = document.createElement('input');
     trigger.type = 'text';
     trigger.autocomplete = 'off';
+    trigger.spellcheck = false;
     trigger.className = 'cst-trigger cst-search-input';
     trigger.placeholder = 'Type to search...';
     wrap.appendChild(trigger);
@@ -1558,10 +1592,18 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     steps[1] = nominalType.value !== '' &&
                (nominalType.value !== 'staff' || staffSubtype.value !== '') &&
                (matterApplicable ? matterNumber.value.trim() !== '' : true);
+    // A disabled field (Staff Claims never need Mode of Payment/Bank Name/Bank Account Number
+    // at all; FPX/JomPAY/Cheque/Bank Draft disable one or more of them too) is legitimately
+    // blank and satisfied, not missing - without this check the tracker got stuck reporting
+    // step 2 as incomplete even once everything past it, including Attachments, was filled in
+    // (reported 2026-10-21).
+    var modeOfPaymentEl = document.getElementById('modeOfPayment');
+    var bankNameEl = activeBankNameField();
+    var bankAccountNumberEl = document.getElementById('bankAccountNumber');
     steps[2] = !!(document.getElementById('payee').value.trim() &&
-                  document.getElementById('modeOfPayment').value &&
-                  activeBankNameField().value.trim() &&
-                  document.getElementById('bankAccountNumber').value.trim());
+                  (modeOfPaymentEl.disabled || modeOfPaymentEl.value) &&
+                  (bankNameEl.disabled || bankNameEl.value.trim()) &&
+                  (bankAccountNumberEl.disabled || bankAccountNumberEl.value.trim()));
     steps[3] = !!((lawyerInChargeField.hidden || lawyerInChargeInput.value.trim()) &&
                   document.getElementById('partnerInCharge').value.trim() &&
                   (seniorPartnerField.hidden || seniorPartnerInput.value.trim()) &&
@@ -1692,6 +1734,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     totalAmountField.value = formatAmount(total);
     staffCapWarning.hidden = !hasCapBreach;
 
+    var isIBG = modeOfPaymentSelect.value.toLowerCase().indexOf('ibg') !== -1;
+    ibgLimitWarning.hidden = !(isIBG && total >= IBG_LIMIT);
+
     headerTotal.textContent = currencySelect.value + ' ' + total.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     updateSeniorPartnerAvailability(total);
@@ -1765,6 +1810,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var type = nominalType.value;
     staffSubtypeField.hidden = type !== 'staff';
     updateMatterVisibility(type === 'matter' || (type === 'staff' && staffSubtype.value === 'matter'));
+    updateBankNameAvailability();
     recalc();
   });
 
@@ -1808,19 +1854,36 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     runMatterLookup();
   });
 
+  // Two separate reasons the manual bank-name field can be needed, with two different looks:
+  // - Foreign currency: the dropdown (a Malaysia-only bank list) doesn't apply at all, so it's
+  //   hidden outright and only the manual field shows.
+  // - "Others" picked from the dropdown (still MYR, but the bank just isn't in the list): the
+  //   dropdown stays visible (showing "Others") and the manual field appears alongside it.
+  // Either way the typed value is treated as "foreign" for SharePoint purposes - it's free
+  // text going into BankNameForeign, not a value from the BankName Choice list.
+  function isBankNameManualMode(){
+    return currencySelect.value.toUpperCase().indexOf('MYR') === -1 || bankNameSelect.value === 'Others';
+  }
+
   function updateBankNameMode(){
-    var isForeign = currencySelect.value.toUpperCase().indexOf('MYR') === -1;
-    bankNameSelect.hidden = isForeign;
-    bankNameSelect.required = !isForeign;
-    bankNameManual.hidden = !isForeign;
-    bankNameManual.required = isForeign;
-    bankNameForeignHint.hidden = !isForeign;
-    if (isForeign && !bankNameManual.value) bankNameManual.value = bankNameSelect.value;
-    else if (!isForeign && !bankNameSelect.value) { /* leave select as-is */ }
+    var isForeignCurrency = currencySelect.value.toUpperCase().indexOf('MYR') === -1;
+    var isOthers = !isForeignCurrency && bankNameSelect.value === 'Others';
+    var needManual = isForeignCurrency || isOthers;
+
+    bankNameSelect.hidden = isForeignCurrency;
+    bankNameSelect.required = !isForeignCurrency;
+    bankNameManual.hidden = !needManual;
+    bankNameManual.required = needManual;
+    bankNameForeignHint.hidden = !needManual;
+    bankNameForeignHint.textContent = isForeignCurrency
+      ? 'Foreign currency selected - please type the bank name manually.'
+      : 'Bank not listed - please type the bank name manually.';
+    if (isForeignCurrency && !bankNameManual.value) bankNameManual.value = bankNameSelect.value;
+    else if (isOthers && bankNameManual.value === bankNameSelect.value) bankNameManual.value = '';
   }
 
   function activeBankNameField(){
-    return currencySelect.value !== 'MYR' ? bankNameManual : bankNameSelect;
+    return isBankNameManualMode() ? bankNameManual : bankNameSelect;
   }
 
   var bankAccountNumberInput = document.getElementById('bankAccountNumber');
@@ -1835,19 +1898,43 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var mode = modeOfPaymentSelect.value.toLowerCase();
     var isFPX = mode.indexOf('fpx') !== -1;
     var isJomPay = mode.indexOf('jompay') !== -1;
-    var disableBankName = isFPX || isJomPay || mode.indexOf('bank draft') !== -1 || mode.indexOf('cheque') !== -1;
+    // Staff Claims (either sub-category, Office or Matter) don't need Mode of Payment/Bank
+    // Name/Bank Account Number spelled out on the request - only Matter Related and Office
+    // Related (the two top-level types, not the Staff Claim subtype of the same names) do.
+    var paymentFieldsNeeded = nominalType.value !== 'staff';
+    var disableBankName = !paymentFieldsNeeded || isFPX || isJomPay || mode.indexOf('bank draft') !== -1 || mode.indexOf('cheque') !== -1;
+
+    modeOfPaymentSelect.disabled = !paymentFieldsNeeded;
+    // Disabling only blocks interaction - it doesn't clear the value, and collectData() reads
+    // these fields' .value unconditionally (it doesn't check .disabled), so a mode/bank name
+    // chosen before switching to a type/mode that hides it would otherwise still get saved to
+    // SharePoint. Dispatching 'change' here re-enters this same function once (with the value
+    // already cleared, so it can't loop) - that's what refreshes the custom dropdown's label.
+    if (!paymentFieldsNeeded && modeOfPaymentSelect.value){
+      modeOfPaymentSelect.value = '';
+      modeOfPaymentSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
 
     bankNameSelect.disabled = disableBankName;
     bankNameSearchInput.disabled = disableBankName;
     bankNameManual.disabled = disableBankName;
+    if (disableBankName){
+      if (bankNameSelect.value){
+        bankNameSelect.value = '';
+        bankNameSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      bankNameManual.value = '';
+    }
 
-    bankAccountNumberInput.disabled = isFPX;
+    bankAccountNumberInput.disabled = isFPX || !paymentFieldsNeeded;
+    if (isFPX || !paymentFieldsNeeded) bankAccountNumberInput.value = '';
     bankAccountNumberLabel.textContent = isJomPay ? 'Bank Account Number/Biller Code *' : 'Bank Account Number *';
   }
-  modeOfPaymentSelect.addEventListener('change', updateBankNameAvailability);
+  modeOfPaymentSelect.addEventListener('change', function(){ updateBankNameAvailability(); recalc(); });
   updateBankNameAvailability();
 
   currencySelect.addEventListener('change', function(){ updateBankNameMode(); recalc(); });
+  bankNameSelect.addEventListener('change', updateBankNameMode);
   form.addEventListener('input', updateTracker);
   form.addEventListener('change', updateTracker);
 
@@ -1907,7 +1994,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     form.querySelectorAll('.invalid').forEach(function(el){ el.classList.remove('invalid'); });
   }
 
-  function validate(){
+  // Does the actual checking and marks/clears .invalid on fields - called both by validate()
+  // (on submit, which also opens the error modal) and live on every form edit (which just
+  // keeps .invalid and an already-open modal's contents in sync, without popping it open).
+  function runValidation(){
     var errors = [];
     clearInvalidStates();
 
@@ -1947,6 +2037,18 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     reqResolvedPerson('lawyerInCharge', 'lawyerInChargeEmail', 'Lawyer/HOD');
     reqResolvedPerson('partnerInCharge', 'partnerInChargeEmail', partnerInChargeLabelText());
 
+    // Lawyer/HOD and Partner-In-Charge are two independent sign-offs - the same person can't
+    // hold both for one request. Only fires once both have actually resolved to a real
+    // person (an unresolved pick is already caught above), and is naturally a no-op for
+    // Office Related, where the Lawyer/HOD field doesn't apply and stays empty.
+    var lawyerEmailVal = document.getElementById('lawyerInChargeEmail').value;
+    var partnerEmailVal = document.getElementById('partnerInChargeEmail').value;
+    if (lawyerEmailVal && partnerEmailVal && lawyerEmailVal.toLowerCase() === partnerEmailVal.toLowerCase()){
+      lawyerInChargeInput.classList.add('invalid');
+      document.getElementById('partnerInCharge').classList.add('invalid');
+      errors.push('Lawyer/HOD and ' + partnerInChargeLabelText() + ' cannot be the same person.');
+    }
+
     if (!seniorPartnerField.hidden){
       req(seniorPartnerInput, 'Senior Partner 1 is required.');
       reqResolvedPerson('seniorPartner', 'seniorPartnerEmail', 'Senior Partner 1');
@@ -1981,16 +2083,57 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var calc = recalc();
     if (calc.hasCapBreach) errors.push('One or more staff claim amounts exceed RM10,000.00.');
     if (calc.total <= 0) errors.push('Total amount must be greater than zero.');
-
-    if (errors.length){
-      errorList.innerHTML = errors.map(function(m){ return '<li>' + m + '</li>'; }).join('');
-      errorSummary.hidden = false;
-      errorSummary.scrollIntoView({ behavior:'smooth', block:'start' });
-    } else {
-      errorSummary.hidden = true;
+    if (modeOfPaymentSelect.value.toLowerCase().indexOf('ibg') !== -1 && calc.total >= IBG_LIMIT){
+      modeOfPaymentSelect.classList.add('invalid');
+      errors.push('InterBank GIRO (IBG) is not available for RM50,000.00 and above - please select Rentas instead.');
     }
+
+    return errors;
+  }
+
+  function showErrorModal(messages){
+    errorList.innerHTML = messages.map(function(m){ return '<li>' + m + '</li>'; }).join('');
+    errorModal.hidden = false;
+  }
+  function hideErrorModal(){ errorModal.hidden = true; }
+  closeErrorModalBtn.addEventListener('click', hideErrorModal);
+  errorModalOkBtn.addEventListener('click', hideErrorModal);
+  errorModal.addEventListener('click', function(e){ if (e.target === errorModal) hideErrorModal(); });
+
+  // Don't mark anything red until the user has actually tried to submit once - otherwise the
+  // untouched/empty fields on a brand new form would all show as invalid immediately (every
+  // field here is required-by-default on a blank form), including from the synthetic 'change'
+  // events this page's own setup code fires while populating dropdowns on load.
+  var hasAttemptedSubmit = false;
+
+  function validate(){
+    hasAttemptedSubmit = true;
+    var errors = runValidation();
+    if (errors.length) showErrorModal(errors);
+    else hideErrorModal();
     return errors.length === 0;
   }
+
+  // Keep the red field highlighting - and an already-open error modal's contents - in sync
+  // as the user fixes things, instead of only re-checking on the next submit attempt. Doesn't
+  // open the modal on its own; only the Submit button (validate()) does that, and only once
+  // that's happened at least once does editing fields start live-updating .invalid states.
+  form.addEventListener('input', function(){
+    if (!hasAttemptedSubmit) return;
+    var errors = runValidation();
+    if (!errorModal.hidden){
+      if (errors.length) showErrorModal(errors);
+      else hideErrorModal();
+    }
+  });
+  form.addEventListener('change', function(){
+    if (!hasAttemptedSubmit) return;
+    var errors = runValidation();
+    if (!errorModal.hidden){
+      if (errors.length) showErrorModal(errors);
+      else hideErrorModal();
+    }
+  });
 
   function collectData(){
     var rows = Array.prototype.slice.call(lineItemsBody.querySelectorAll('tr')).map(function(tr){
@@ -2007,9 +2150,18 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       clientName: clientName.value,
       matterDescription: matterDescription.value,
       payee: payeeInput.value,
-      modeOfPayment: document.getElementById('modeOfPayment').value,
-      bankName: activeBankNameField().value,
-      bankAccountNumber: document.getElementById('bankAccountNumber').value,
+      // Re-check .disabled here rather than trust it was already cleared elsewhere - these
+      // get disabled (and should read as blank) whenever Mode of Payment doesn't need
+      // specifying (Matter/Office Related) or FPX/JomPAY hides a given field, and a path
+      // like applyFormData's direct .value assignment doesn't go through that clearing logic.
+      modeOfPayment: document.getElementById('modeOfPayment').disabled ? '' : document.getElementById('modeOfPayment').value,
+      bankName: activeBankNameField().disabled ? '' : activeBankNameField().value,
+      // Which SharePoint column this goes to (BankName vs BankNameForeign) depends on WHY the
+      // manual field was used - foreign currency, or "Others" picked for an unlisted local
+      // bank - not just on currency, now that "Others" lets a manually-typed name happen
+      // under MYR too (see isBankNameManualMode/updateBankNameMode).
+      bankNameIsForeign: isBankNameManualMode(),
+      bankAccountNumber: document.getElementById('bankAccountNumber').disabled ? '' : document.getElementById('bankAccountNumber').value,
       lawyerInCharge: document.getElementById('lawyerInCharge').value,
       lawyerInChargeEmail: document.getElementById('lawyerInChargeEmail').value,
       partnerInCharge: document.getElementById('partnerInCharge').value,
@@ -2025,9 +2177,20 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     };
   }
 
-  resetBtn.addEventListener('click', function(){
-    if (!confirm('Reset the form? Unsaved changes will be lost.')) return;
+  // Shared by the Reset button and by a successful submit (below) - pulled out so both go
+  // through the exact same cleanup rather than the two drifting apart over time.
+  function resetForm(){
     form.reset();
+    // form.reset() puts the real <select>s back to their blank default but doesn't fire
+    // 'change' - the visible custom dropdown (cst-trigger/cst-search-input, a separate
+    // element layered over the real <select>, see enhanceSelect/enhanceSelectSearchable)
+    // only refreshes its own label off that event, so without this it would keep showing
+    // whatever was last chosen even though the real value underneath is already blank.
+    nominalType.dispatchEvent(new Event('change'));
+    staffSubtype.dispatchEvent(new Event('change'));
+    modeOfPaymentSelect.dispatchEvent(new Event('change'));
+    currencySelect.dispatchEvent(new Event('change'));
+    bankNameSelect.dispatchEvent(new Event('change'));
     matterSection.hidden = true;
     staffSubtypeField.hidden = true;
     clientName.value = '';
@@ -2043,7 +2206,14 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     bankNameManual.value = '';
     updateBankNameMode();
     recalc();
-    errorSummary.hidden = true;
+    hasAttemptedSubmit = false;
+    clearInvalidStates();
+    hideErrorModal();
+  }
+
+  resetBtn.addEventListener('click', function(){
+    if (!confirm('Reset the form? Unsaved changes will be lost.')) return;
+    resetForm();
   });
 
   form.addEventListener('submit', function(e){
@@ -2052,9 +2222,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var data = collectData();
 
     if (typeof window.spSubmitRequest !== 'function'){
-      errorList.innerHTML = '<li>Not connected to SharePoint yet - please make sure you are signed in, then try again.</li>';
-      errorSummary.hidden = false;
-      errorSummary.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      showErrorModal(['Not connected to SharePoint yet - please make sure you are signed in, then try again.']);
       return;
     }
 
@@ -2068,13 +2236,17 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       refNumber.textContent = created.id;
       successSummary.textContent = data.payee + ' - ' + data.currency + ' ' + data.totalAmount + ' submitted for approval.';
       successModal.hidden = false;
-      loadRequestsFromSharePoint();
+      resetForm();
+      // The success modal is a fixed overlay on top of whichever view is active, so switching
+      // to View Requests now (while it's still showing) means closing the modal lands them
+      // straight there instead of back on the just-reset, now-empty Submit form. The nav
+      // item's own click handler already reloads the list, so no need to call that here too.
+      var viewRequestsNavItem = document.querySelector('.nav-item[data-view="requests"]');
+      if (viewRequestsNavItem) viewRequestsNavItem.click();
     }).catch(function(err){
       submitBtn.disabled = false;
       submitBtn.innerHTML = originalSubmitHtml;
-      errorList.innerHTML = '<li>Could not submit to SharePoint: ' + escapeHtml((err && err.message) || 'Unknown error') + '</li>';
-      errorSummary.hidden = false;
-      errorSummary.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      showErrorModal(['Could not submit to SharePoint: ' + escapeHtml((err && err.message) || 'Unknown error')]);
     });
   });
 
@@ -2398,12 +2570,32 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       return (status || '').toLowerCase() === 'approved' ? 'Verified' : status;
     }
 
+    var typePillHtml = '<span class="type-pill ' + escapeHtml(reqItem.type) + '">' + escapeHtml(TYPE_LABELS[reqItem.type] || reqItem.type) + '</span>';
+    var isStaffType = reqItem.type === 'staff';
+    var staffSubtype = (reqItem.formData && reqItem.formData.staffSubtype) || 'matter';
     var overviewRows = [
-      ['Request Type', TYPE_LABELS[reqItem.type] || reqItem.type],
+      ['Request Type', typePillHtml, true],
       ['Created By', val(reqItem.createdBy)],
       ['Payee', reqItem.payee],
       ['Amount', reqItem.currency + ' ' + reqItem.amount],
       ['Date Submitted', reqItem.date]
+    ];
+    // Staff Claim category (Matter vs Office) isn't its own SharePoint column - it's folded
+    // into the RequestType Choice text itself (see inferTypeFromText/requestTypeForSharePoint),
+    // so it's otherwise invisible here unless called out as its own row.
+    if (isStaffType){
+      var staffSubtypePillHtml = staffSubtype === 'office'
+        ? '<span class="type-pill staff-office">Office</span>'
+        : '<span class="type-pill staff-matter">Matter</span>';
+      overviewRows.splice(1, 0, ['Staff Claim Category', staffSubtypePillHtml, true]);
+    }
+    // Only shown when the request actually has matter data - a Staff Claim filed under the
+    // Office category, or an Office Related request, never captured these.
+    var hasMatterData = reqItem.type === 'matter' || (isStaffType && staffSubtype === 'matter');
+    var matterRows = [
+      ['Matter Number', val(reqItem.formData && reqItem.formData.matterNumber)],
+      ['Client Name', val(reqItem.formData && reqItem.formData.clientName)],
+      ['Matter Description', val(reqItem.formData && reqItem.formData.matterDescription)]
     ];
     // Payment/Approval always render every field now (not just the ones with a value) -
     // missing data shows a placeholder instead of silently disappearing, so it's clear
@@ -2432,7 +2624,12 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         '<span class="status-badge ' + meta.cls + '"><i class="fa-solid ' + meta.icon + '"></i> ' + meta.label + '</span>' +
       '</div>';
     html += '<div class="rd-section"><div class="rd-section-title">Overview</div>' + rowsHtml(overviewRows) + '</div>';
-    html += '<div class="rd-section"><div class="rd-section-title">Payment</div>' + rowsHtml(paymentRows) + '</div>';
+    if (hasMatterData){
+      html += '<div class="rd-section"><div class="rd-section-title">Matter Details</div>' + rowsHtml(matterRows) + '</div>';
+    }
+    html += '<div class="rd-section"><div class="rd-section-title">Payment</div>' + rowsHtml(paymentRows) +
+      (isStaffType ? '<div class="rd-inline-note"><i class="fa-solid fa-circle-info"></i> Not required for Staff Claims.</div>' : '') +
+      '</div>';
     if (lineItems.length){
       var total = lineItems.reduce(function(sum, li){ return sum + (parseFloat(li.amount) || 0); }, 0);
       html += '<div class="rd-section"><div class="rd-section-title">Line Items</div>' +
@@ -2502,8 +2699,27 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     modeOfPaymentSelect.dispatchEvent(new Event('change'));
     currencySelect.value = data.currency || 'MYR';
     currencySelect.dispatchEvent(new Event('change'));
-    activeBankNameField().value = data.bankName || '';
-    document.getElementById('bankAccountNumber').value = data.bankAccountNumber || '';
+    // If the copied data's bank name was free-typed (genuinely foreign currency, or "Others"
+    // picked for an MYR bank not in the list), reflect that split rather than just dumping
+    // the text into whichever field activeBankNameField() happens to point at right now -
+    // otherwise an "Others" bank copied back in would silently land in the BankName Choice
+    // field instead of BankNameForeign, which SharePoint would reject as not a valid choice.
+    var isMyrNow = currencySelect.value.toUpperCase().indexOf('MYR') !== -1;
+    if (data.bankNameIsForeign && isMyrNow && bankNameSelect.value !== 'Others'){
+      bankNameSelect.value = 'Others';
+      bankNameSelect.dispatchEvent(new Event('change'));
+    } else if (!data.bankNameIsForeign && isMyrNow && bankNameSelect.value === 'Others'){
+      bankNameSelect.value = '';
+      bankNameSelect.dispatchEvent(new Event('change'));
+    }
+    // The dispatches above already ran updateBankNameAvailability for this data's own
+    // nominalType/modeOfPayment, so .disabled here already reflects whether these fields
+    // actually apply - only restore a value where they do, same reasoning as the matter
+    // fields above (don't let a stale value sit in what's now a disabled field).
+    var bankNameFieldEl = activeBankNameField();
+    bankNameFieldEl.value = bankNameFieldEl.disabled ? '' : (data.bankName || '');
+    var bankAccountNumberFieldEl = document.getElementById('bankAccountNumber');
+    bankAccountNumberFieldEl.value = bankAccountNumberFieldEl.disabled ? '' : (data.bankAccountNumber || '');
     document.getElementById('lawyerInCharge').value = data.lawyerInCharge || '';
     document.getElementById('lawyerInChargeEmail').value = data.lawyerInChargeEmail || '';
     document.getElementById('partnerInCharge').value = data.partnerInCharge || '';
@@ -3026,14 +3242,22 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   // classify individual Lawyer/Partner/Accounts stage statuses the same way.
   window.classifyApprovalStatus = classifyApprovalStatus;
 
-  function inferTypeFromText(text){
+  // staffClaimCategory is the dedicated "StaffClaimCategory" Choice column (values "Matter"/
+  // "Office") - the real source of truth once populated, since RequestType's own text often
+  // can't distinguish the two at all (the plain "Client" wording carries no such detail).
+  // Falls back to guessing from RequestType's text only for older records from before that
+  // column existed.
+  function inferTypeFromText(text, staffClaimCategory){
     var lc = (text || '').toLowerCase();
     // The live RequestType Choice column uses "Client" for what this app calls "Staff
     // Claims" internally (confirmed same category, just relabelled in SharePoint) - match
     // on either wording so this keeps working if it's ever renamed back.
     var hasStaff = lc.indexOf('staff') !== -1 || lc.indexOf('client') !== -1;
     var hasOffice = lc.indexOf('office') !== -1;
-    if (hasStaff) return { nominalType: 'staff', staffSubtype: hasOffice ? 'office' : 'matter' };
+    if (hasStaff){
+      var subtype = staffClaimCategory ? (staffClaimCategory.toLowerCase() === 'office' ? 'office' : 'matter') : (hasOffice ? 'office' : 'matter');
+      return { nominalType: 'staff', staffSubtype: subtype };
+    }
     if (hasOffice) return { nominalType: 'office', staffSubtype: 'matter' };
     return { nominalType: 'matter', staffSubtype: 'matter' };
   }
@@ -3124,7 +3348,13 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         } else if (col.name === 'Currency'){
           populateOptions(document.getElementById('currency'), col.choice.choices, false);
         } else if (col.name === 'BankName'){
-          populateOptions(document.getElementById('bankName'), col.choice.choices, true, 'Select bank');
+          // "Others" isn't a real SharePoint choice (there's nowhere to put a free-typed
+          // overseas/unlisted bank name as a Choice value) - it's purely a trigger in this
+          // form's own UI for switching to the manual bankNameManual field, so it has to be
+          // re-added here every time or the live SharePoint list would silently replace it.
+          var bankChoices = col.choice.choices.slice();
+          if (bankChoices.indexOf('Others') === -1) bankChoices.push('Others');
+          populateOptions(document.getElementById('bankName'), bankChoices, true, 'Select bank');
         }
       });
     }).catch(function(err){
@@ -3170,9 +3400,20 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   function searchPeople(query){
     return fetchGroupMembers().then(function(members){
       var list = members;
+      // A lawyer/partner can't verify or approve their own claim, so the person submitting
+      // this request should never even show up as a pickable option in any of the four
+      // approver fields (Lawyer/HOD, Partner-In-Charge, Senior Partner 1/2) in the first
+      // place - they all share this same search, so excluding here covers all of them.
+      var selfEmail = (window.__currentUserEmail || '').toLowerCase();
+      if (selfEmail){
+        list = list.filter(function(p){ return (personEmail(p) || '').toLowerCase() !== selfEmail; });
+      }
       if (query){
         var q = query.toLowerCase();
-        list = members.filter(function(p){
+        // Filter the already self-excluded list, not the original members - filtering from
+        // members here would silently undo the self-exclusion above the moment any query
+        // text was typed, letting the submitter reappear as soon as they searched for anything.
+        list = list.filter(function(p){
           return (p.displayName || '').toLowerCase().indexOf(q) !== -1 ||
                  (p.mail || '').toLowerCase().indexOf(q) !== -1 ||
                  (p.userPrincipalName || '').toLowerCase().indexOf(q) !== -1;
@@ -3254,7 +3495,14 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
     input.addEventListener('focus', function(){
       openPeoplePickers.forEach(function(hide){ if (hide !== hideBox) hide(); });
-      runSearch(input.value.trim());
+      // Always open on the full list, not filtered by whatever name is already sitting in
+      // the field - re-searching by the current value here meant re-focusing a field that
+      // already had someone picked only ever showed that same person back (nothing else
+      // could match), making it look like there was no way to pick someone different.
+      // Selecting the text too means the next keystroke replaces it outright, same pattern
+      // as the Bank Name searchable dropdown.
+      runSearch('');
+      input.select();
     });
 
     input.addEventListener('input', function(){
@@ -3454,14 +3702,20 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     };
     // BankName (Choice, Malaysian bank list) vs BankNameForeign (free text) are separate
     // columns on Master now - which one gets written depends on which field the form was
-    // actually showing (same MYR-vs-foreign split as updateBankNameMode/activeBankNameField).
-    if (data.currency === 'MYR') fields.BankName = data.bankName || '';
-    else fields.BankNameForeign = data.bankName || '';
+    // actually showing (same split as updateBankNameMode/activeBankNameField: foreign
+    // currency OR "Others" picked for an unlisted local bank both count as "foreign" here).
+    if (data.bankNameIsForeign) fields.BankNameForeign = data.bankName || '';
+    else fields.BankName = data.bankName || '';
     // MatterNo's SharePoint column is currently typed as Number, but matter numbers aren't
     // guaranteed to be purely numeric - send whatever was entered as-is (SharePoint will
     // reject it visibly if the column truly can't hold it, rather than this silently
     // dropping the value). Only omitted when genuinely blank (Office/Client requests).
     if (data.matterNumber) fields.MatterNo = data.matterNumber;
+    // Dedicated Choice column (values "Matter"/"Office") added specifically so a Staff Claim's
+    // subtype is actually recorded somewhere, rather than relying on guessing it back out of
+    // RequestType's own text (which often can't distinguish the two at all - see
+    // inferTypeFromText). Only meaningful for Staff Claims; omitted otherwise.
+    if (data.nominalType === 'staff') fields.StaffClaimCategory = data.staffSubtype === 'office' ? 'Office' : 'Matter';
 
     var createdMaster;
     return Promise.all([
@@ -3589,7 +3843,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
         return masterRows.map(function(row){
           var f = row.fields || {};
-          var typeInfo = inferTypeFromText(f.RequestType);
+          var typeInfo = inferTypeFromText(f.RequestType, f.StaffClaimCategory);
           var lineItems = detailsByMaster[row.id] || [];
           // Master's own Status column is the normal source of truth (see the note near the
           // top of this block), but whatever external process sets it doesn't reliably flip
@@ -3602,8 +3856,11 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
             return classifyApprovalStatus(s) === 'rejected';
           });
           var status = anyStageRejected ? 'rejected' : classifyApprovalStatus(f.Status);
-          var isForeign = (f.Currency || '').toUpperCase() !== 'MYR';
-          var bankNameValue = isForeign ? (f.BankNameForeign || '') : (f.BankName || '');
+          // Prefer BankNameForeign over BankName whenever it actually has a value, rather than
+          // deciding purely off Currency - an MYR request can also have its bank name there
+          // now, if "Others" was picked for a bank that isn't in the BankName Choice list.
+          var bankNameIsForeign = !!f.BankNameForeign;
+          var bankNameValue = bankNameIsForeign ? f.BankNameForeign : (f.BankName || '');
           var lawyerUser = userById[f.LawyerInChargeLookupId] || {};
           var partnerUser = userById[f.PartnerInChargeLookupId] || {};
           var seniorPartnerUser = userById[f.SeniorPartner1LookupId] || {};
@@ -3671,6 +3928,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
               payee: f.Payee || '',
               modeOfPayment: f.ModeOfPayment || '',
               bankName: bankNameValue,
+              bankNameIsForeign: bankNameIsForeign,
               bankAccountNumber: f.BankNo || '',
               lawyerInCharge: lawyerName,
               lawyerInChargeEmail: lawyerUser.email || '',

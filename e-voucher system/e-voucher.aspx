@@ -13,7 +13,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.10.21.10';
+  window.__EVOUCHER_VERSION__ = '2026.10.22.1';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -961,7 +961,6 @@
                   <option>FPX</option>
                   <option>JomPAY</option>
                 </select>
-                <p class="hint warning" id="ibgLimitWarning" hidden>&#9888; InterBank GIRO (IBG) is not available for RM50,000.00 and above - please select Rentas instead.</p>
               </div>
               <div class="field">
                 <label for="bankName">Bank Name *</label>
@@ -1385,8 +1384,6 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var addRowBtn = document.getElementById('addRowBtn');
   var totalAmountField = document.getElementById('totalAmount');
   var staffCapWarning = document.getElementById('staffCapWarning');
-  var ibgLimitWarning = document.getElementById('ibgLimitWarning');
-  var IBG_LIMIT = 50000;
   var lineItemLimitWarning = document.getElementById('lineItemLimitWarning');
   var MAX_LINE_ITEMS = 5;
   var dropzone = document.getElementById('dropzone');
@@ -1734,9 +1731,6 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     totalAmountField.value = formatAmount(total);
     staffCapWarning.hidden = !hasCapBreach;
 
-    var isIBG = modeOfPaymentSelect.value.toLowerCase().indexOf('ibg') !== -1;
-    ibgLimitWarning.hidden = !(isIBG && total >= IBG_LIMIT);
-
     headerTotal.textContent = currencySelect.value + ' ' + total.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     updateSeniorPartnerAvailability(total);
@@ -2052,6 +2046,17 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     if (!seniorPartnerField.hidden){
       req(seniorPartnerInput, 'Senior Partner 1 is required.');
       reqResolvedPerson('seniorPartner', 'seniorPartnerEmail', 'Senior Partner 1');
+
+      // The picker itself already excludes whoever is currently Partner-In-Charge from
+      // Senior Partner 1's own suggestions, but that only guards picking a NEW duplicate -
+      // this catches the reverse order too (Partner-In-Charge changed after Senior Partner 1
+      // was already set to that same person).
+      var seniorPartnerEmailVal = document.getElementById('seniorPartnerEmail').value;
+      if (partnerEmailVal && seniorPartnerEmailVal && partnerEmailVal.toLowerCase() === seniorPartnerEmailVal.toLowerCase()){
+        document.getElementById('partnerInCharge').classList.add('invalid');
+        seniorPartnerInput.classList.add('invalid');
+        errors.push(partnerInChargeLabelText() + ' and Senior Partner 1 cannot be the same person.');
+      }
     }
     if (!seniorPartner2Field.hidden){
       req(seniorPartner2Input, 'Senior Partner 2 is required.');
@@ -2083,10 +2088,6 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var calc = recalc();
     if (calc.hasCapBreach) errors.push('One or more staff claim amounts exceed RM10,000.00.');
     if (calc.total <= 0) errors.push('Total amount must be greater than zero.');
-    if (modeOfPaymentSelect.value.toLowerCase().indexOf('ibg') !== -1 && calc.total >= IBG_LIMIT){
-      modeOfPaymentSelect.classList.add('invalid');
-      errors.push('InterBank GIRO (IBG) is not available for RM50,000.00 and above - please select Rentas instead.');
-    }
 
     return errors;
   }
@@ -3439,7 +3440,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
   var openPeoplePickers = [];
 
-  // config: { inputId, suggestionsId, hiddenEmailId }
+  // config: { inputId, suggestionsId, hiddenEmailId, excludeEmailId }
   function setupPeoplePicker(config){
     var input = document.getElementById(config.inputId);
     var box = document.getElementById(config.suggestionsId);
@@ -3468,7 +3469,18 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     }
 
     function runSearch(query){
-      searchPeople(query).then(renderResults).catch(function(){
+      searchPeople(query).then(function(people){
+        // Some pickers exclude whoever is CURRENTLY picked in another field (e.g. Senior
+        // Partner 1 can't be the same person as Partner-In-Charge) - read that other field's
+        // live value each time rather than a fixed email, so it stays correct as that other
+        // field changes.
+        if (config.excludeEmailId){
+          var excludeEmailEl = document.getElementById(config.excludeEmailId);
+          var excludeEmail = ((excludeEmailEl && excludeEmailEl.value) || '').toLowerCase();
+          if (excludeEmail) people = people.filter(function(p){ return (personEmail(p) || '').toLowerCase() !== excludeEmail; });
+        }
+        return people;
+      }).then(renderResults).catch(function(){
         box.innerHTML = '<div class="p-status">Search unavailable right now - you can still type a name manually.</div>';
         showBox();
       });
@@ -4048,7 +4060,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     setupPeoplePicker({ inputId: 'lawyerInCharge', hiddenEmailId: 'lawyerInChargeEmail', suggestionsId: 'lawyerInChargeSuggestions' });
     setupPeoplePicker({ inputId: 'partnerInCharge', hiddenEmailId: 'partnerInChargeEmail', suggestionsId: 'partnerInChargeSuggestions' });
     // Same security group as Lawyer/Partner (per instruction) - no separate group ID needed.
-    setupPeoplePicker({ inputId: 'seniorPartner', hiddenEmailId: 'seniorPartnerEmail', suggestionsId: 'seniorPartnerSuggestions' });
+    // Partner-In-Charge and Senior Partner 1 can't be the same person, so whoever is
+    // currently Partner-In-Charge is excluded from this picker's own suggestions.
+    setupPeoplePicker({ inputId: 'seniorPartner', hiddenEmailId: 'seniorPartnerEmail', suggestionsId: 'seniorPartnerSuggestions', excludeEmailId: 'partnerInChargeEmail' });
     setupPeoplePicker({ inputId: 'seniorPartner2', hiddenEmailId: 'seniorPartner2Email', suggestionsId: 'seniorPartner2Suggestions' });
   });
 })();

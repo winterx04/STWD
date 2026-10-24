@@ -13,7 +13,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.10.22.1';
+  window.__EVOUCHER_VERSION__ = '2026.10.24.20';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -761,9 +761,10 @@
   .rd-actions{margin-top:8px;display:flex;gap:10px;justify-content:flex-end;}
   @media (max-width:480px){.rd-actions{justify-content:stretch;}.rd-actions .btn{flex:1;}}
   .rd-remarks-box{
-    margin-top:14px;text-align:left;padding:14px;border-radius:10px;
-    background:var(--danger-bg);border:1px solid #f3c6c6;
+    margin-top:14px;margin-bottom:12px;text-align:left;padding:14px;border-radius:10px;
+    background:#f5f7fa;border:1px solid #e3e7ee;
   }
+  .rd-remarks-box .hint{margin:6px 0 0;}
   .rd-remarks-box label{display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--navy);}
   .rd-remarks-box textarea{width:100%;resize:vertical;}
   .rd-remarks-box .rd-actions{margin-top:10px;}
@@ -1027,7 +1028,7 @@
             <h2><span class="step">3</span><i class="fa-solid fa-user-check card-icon"></i>Approval Routing</h2>
             <div class="grid-2">
               <div class="field" id="lawyerInChargeField">
-                <label for="lawyerInCharge">Lawyer/HOD *</label>
+                <label for="lawyerInCharge" id="lawyerInChargeLabel">Lawyer-In-Charge *</label>
                 <div class="people-picker" id="lawyerInChargePicker">
                   <input type="text" id="lawyerInCharge" autocomplete="off" spellcheck="false" placeholder="Click or type to search..." required>
                   <input type="hidden" id="lawyerInChargeEmail">
@@ -1322,18 +1323,17 @@
     <button type="button" class="modal-close-x" id="closeRequestDetailsBtn" title="Close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
     <h2>Request Details</h2>
     <div id="requestDetailsBody" class="matrix-info"></div>
+    <!-- Shown alongside Reject/Mark Complete; saved to AccountsRemarks and included in the
+         submitter's email. Optional for Mark Complete, required for Reject. -->
+    <div class="rd-remarks-box" id="accountsRemarksBox" hidden>
+      <label for="accountsRemarksInput">Accounts Remarks</label>
+      <textarea id="accountsRemarksInput" rows="3" maxlength="1000" placeholder="Optional for Mark Complete, required for Reject. Sent to the submitter."></textarea>
+      <p class="hint warning" id="accountsRemarksError" hidden>Please enter remarks explaining why this request is being rejected.</p>
+    </div>
     <div class="rd-actions" id="rdMainActions">
       <button type="button" class="btn btn-primary" id="resubmitRequestBtn" hidden><i class="fa-solid fa-pen-to-square"></i> Edit &amp; Resubmit</button>
       <button type="button" class="btn btn-danger" id="accountsRejectBtn" hidden><i class="fa-solid fa-circle-xmark"></i> Reject</button>
       <button type="button" class="btn btn-success" id="accountsCompleteBtn" hidden><i class="fa-solid fa-circle-check"></i> Mark Complete</button>
-    </div>
-    <div class="rd-remarks-box" id="accountsRemarksBox" hidden>
-      <label for="accountsRemarksInput">Rejection Remarks *</label>
-      <textarea id="accountsRemarksInput" rows="3" placeholder="Explain why this request is being rejected..."></textarea>
-      <div class="rd-actions">
-        <button type="button" class="btn btn-ghost" id="accountsRejectCancelBtn">Cancel</button>
-        <button type="button" class="btn btn-danger" id="accountsRejectConfirmBtn">Confirm Rejection</button>
-      </div>
     </div>
   </div>
 </div>
@@ -1756,7 +1756,18 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   // picker/field does double duty as the department head's sign-off for Office requests - it
   // reads as "HOD" there instead, even though it's the same underlying person field and column.
   function partnerInChargeLabelText(){
-    return nominalType.value === 'office' ? 'HOD' : 'Partner-In-Charge';
+    if (nominalType.value === 'office') return 'HOD';
+    // Staff Claim (Office category): second sign-off is a Senior Partner, saved to SeniorPartner1.
+    if (nominalType.value === 'staff' && staffSubtype.value === 'office') return 'Senior Partner 1';
+    return 'Partner-In-Charge';
+  }
+  // Staff Claim under the Office category is signed off first by the department head, not a
+  // lawyer - same field, labelled "HOD", and saved to HeadOfDepartment (see spSubmitRequest).
+  function isStaffOfficeClaim(){
+    return nominalType.value === 'staff' && staffSubtype.value === 'office';
+  }
+  function lawyerInChargeLabelText(){
+    return isStaffOfficeClaim() ? 'HOD' : 'Lawyer-In-Charge';
   }
 
   function updateSeniorPartnerAvailability(total){
@@ -1767,6 +1778,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var needLawyer = !isOffice;
 
     partnerInChargeLabel.textContent = partnerInChargeLabelText() + ' *';
+    document.getElementById('lawyerInChargeLabel').textContent = lawyerInChargeLabelText() + ' *';
 
     lawyerInChargeField.hidden = !needLawyer;
     lawyerInChargeInput.required = needLawyer;
@@ -2017,7 +2029,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     req(modeOfPaymentSelect, 'Mode Of Payment is required.');
     req(activeBankNameField(), 'Bank Name is required.');
     req(document.getElementById('bankAccountNumber'), 'Bank account number is required.');
-    req(lawyerInChargeInput, 'Lawyer/HOD is required.');
+    req(lawyerInChargeInput, lawyerInChargeLabelText() + ' is required.');
     req(document.getElementById('partnerInCharge'), partnerInChargeLabelText() + ' is required.');
     // LawyerInCharge/PartnerInCharge are SharePoint Person columns, so free-typed text that
     // doesn't match a real directory entry (no email resolved) can't actually be saved there.
@@ -2028,7 +2040,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         errors.push('Please pick the ' + label + ' from the suggestions list.');
       }
     }
-    reqResolvedPerson('lawyerInCharge', 'lawyerInChargeEmail', 'Lawyer/HOD');
+    reqResolvedPerson('lawyerInCharge', 'lawyerInChargeEmail', lawyerInChargeLabelText());
     reqResolvedPerson('partnerInCharge', 'partnerInChargeEmail', partnerInChargeLabelText());
 
     // Lawyer/HOD and Partner-In-Charge are two independent sign-offs - the same person can't
@@ -2040,7 +2052,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     if (lawyerEmailVal && partnerEmailVal && lawyerEmailVal.toLowerCase() === partnerEmailVal.toLowerCase()){
       lawyerInChargeInput.classList.add('invalid');
       document.getElementById('partnerInCharge').classList.add('invalid');
-      errors.push('Lawyer/HOD and ' + partnerInChargeLabelText() + ' cannot be the same person.');
+      errors.push(lawyerInChargeLabelText() + ' and ' + partnerInChargeLabelText() + ' cannot be the same person.');
     }
 
     if (!seniorPartnerField.hidden){
@@ -2334,8 +2346,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var accountsRejectBtn = document.getElementById('accountsRejectBtn');
   var accountsRemarksBox = document.getElementById('accountsRemarksBox');
   var accountsRemarksInput = document.getElementById('accountsRemarksInput');
-  var accountsRejectCancelBtn = document.getElementById('accountsRejectCancelBtn');
-  var accountsRejectConfirmBtn = document.getElementById('accountsRejectConfirmBtn');
+  var accountsRemarksError = document.getElementById('accountsRemarksError');
   var currentDetailsIdx = -1;
 
   function requestRowHtml(reqItem, idx){
@@ -2609,16 +2620,22 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     function fmtAmount(n){
       return reqItem.currency + ' ' + (parseFloat(n) || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
-    // Office Related requests never have a Lawyer/HOD stage of their own (see
-    // updateSeniorPartnerAvailability) - the Partner-In-Charge field does that job instead for
-    // those requests, so it reads as "HOD" here too, matching the submit form's label.
-    var partnerCardLabel = reqItem.type === 'office' ? 'HOD' : 'Partner-In-Charge';
+    // Every stage always renders, straight from its own SharePoint column - the first approval
+    // is Lawyer-In-Charge (Matter/Staff) or Head of Department (Office), so one of those two
+    // simply shows Not set.
+    // A stage with no approver assigned doesn't apply to this request, so it always reads
+    // "Not Applicable" whatever its status column holds (e.g. a default "New"). Display only -
+    // SharePoint isn't changed. Accounts is excluded: it's assigned later, when Accounts acts.
+    function stageStatus(name, status){ return name ? status : 'Not Applicable'; }
     var approvalCardsHtml =
-      approverCardHtml('Lawyer/HOD', reqItem.lawyerInCharge, reqItem.lawyerStatus, lawyerStatusDisplay(reqItem.lawyerStatus), reqItem.lawyerRemarks) +
-      approverCardHtml(partnerCardLabel, reqItem.partnerInCharge, reqItem.partnerStatus, undefined, reqItem.partnerRemarks) +
-      approverCardHtml('Senior Partner 1', reqItem.seniorPartner, reqItem.seniorPartnerStatus, undefined, reqItem.seniorPartnerRemarks) +
-      approverCardHtml('Senior Partner 2', reqItem.seniorPartner2, reqItem.seniorPartner2Status, undefined, reqItem.seniorPartner2Remarks) +
-      approverCardHtml('Accounts', reqItem.accountsInCharge, reqItem.accountsStatus, undefined, reqItem.accountsRemarks);
+      approverCardHtml('Lawyer-In-Charge', reqItem.lawyerInCharge, stageStatus(reqItem.lawyerInCharge, reqItem.lawyerStatus), reqItem.lawyerInCharge ? lawyerStatusDisplay(reqItem.lawyerStatus) : undefined, reqItem.lawyerRemarks) +
+      approverCardHtml('Head of Department', reqItem.headOfDepartment, stageStatus(reqItem.headOfDepartment, reqItem.headOfDepartmentStatus), undefined, reqItem.headOfDepartmentRemarks) +
+      approverCardHtml('Partner-In-Charge', reqItem.partnerInCharge, stageStatus(reqItem.partnerInCharge, reqItem.partnerStatus), undefined, reqItem.partnerRemarks) +
+      approverCardHtml('Senior Partner 1', reqItem.seniorPartner, stageStatus(reqItem.seniorPartner, reqItem.seniorPartnerStatus), undefined, reqItem.seniorPartnerRemarks) +
+      approverCardHtml('Senior Partner 2', reqItem.seniorPartner2, stageStatus(reqItem.seniorPartner2, reqItem.seniorPartner2Status), undefined, reqItem.seniorPartner2Remarks) +
+      // AccountsStatus's Choice value is "Complete" - shown as "Completed" to match the overall status.
+      approverCardHtml('Accounts', reqItem.accountsInCharge, reqItem.accountsStatus,
+        (reqItem.accountsStatus || '').toLowerCase() === 'complete' ? 'Completed' : undefined, reqItem.accountsRemarks);
 
     var html = '<div class="rd-hero">' +
         '<span class="ref-chip">ID : ' + escapeHtml(reqItem.ref) + '</span>' +
@@ -2658,8 +2675,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var showAccountsActions = !!fromAccounts && reqItem.readyForAccounts;
     accountsCompleteBtn.hidden = !showAccountsActions;
     accountsRejectBtn.hidden = !showAccountsActions;
-    accountsRemarksBox.hidden = true;
+    accountsRemarksBox.hidden = !showAccountsActions;
     accountsRemarksInput.value = '';
+    accountsRemarksInput.classList.remove('invalid');
+    accountsRemarksError.hidden = true;
     rdMainActions.hidden = false;
 
     requestDetailsModal.hidden = false;
@@ -2797,10 +2816,18 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     if (!reqItem || typeof window.spSubmitAccountsDecision !== 'function') return;
     accountsCompleteBtn.disabled = true;
     accountsRejectBtn.disabled = true;
-    accountsRejectConfirmBtn.disabled = true;
+    accountsRemarksInput.disabled = true;
     var originalCompleteHtml = accountsCompleteBtn.innerHTML;
     accountsCompleteBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
-    window.spSubmitAccountsDecision(reqItem.ref, decision, remarks, reqItem.submitterEmail).then(function(){
+    var emailDetails = {
+      submitterName: reqItem.createdBy || '',
+      requestType: TYPE_LABELS[reqItem.type] || reqItem.type || '',
+      payee: reqItem.payee || '',
+      modeOfPayment: (reqItem.formData && reqItem.formData.modeOfPayment) || '',
+      totalAmount: (reqItem.currency ? reqItem.currency + ' ' : '') + reqItem.amount
+    };
+    var detailItemIds = ((reqItem.formData && reqItem.formData.lineItems) || []).map(function(li){ return li.detailItemId; }).filter(Boolean);
+    window.spSubmitAccountsDecision(reqItem.ref, decision, remarks, reqItem.submitterEmail, emailDetails, detailItemIds).then(function(){
       requestDetailsModal.hidden = true;
       loadRequestsFromSharePoint();
     }).catch(function(err){
@@ -2808,32 +2835,32 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     }).then(function(){
       accountsCompleteBtn.disabled = false;
       accountsRejectBtn.disabled = false;
-      accountsRejectConfirmBtn.disabled = false;
+      accountsRemarksInput.disabled = false;
       accountsCompleteBtn.innerHTML = originalCompleteHtml;
     });
   }
 
+  function clearAccountsRemarksError(){
+    accountsRemarksInput.classList.remove('invalid');
+    accountsRemarksError.hidden = true;
+  }
+  accountsRemarksInput.addEventListener('input', clearAccountsRemarksError);
+
   accountsCompleteBtn.addEventListener('click', function(){
+    clearAccountsRemarksError();
     if (!confirm('Mark this request as Complete? The submitter will be emailed.')) return;
-    submitAccountsDecision('Complete', '');
+    submitAccountsDecision('Complete', accountsRemarksInput.value.trim());
   });
   accountsRejectBtn.addEventListener('click', function(){
-    rdMainActions.hidden = true;
-    accountsRemarksBox.hidden = false;
-    accountsRemarksInput.focus();
-  });
-  accountsRejectCancelBtn.addEventListener('click', function(){
-    accountsRemarksBox.hidden = true;
-    rdMainActions.hidden = false;
-  });
-  accountsRejectConfirmBtn.addEventListener('click', function(){
     var remarks = accountsRemarksInput.value.trim();
     if (!remarks){
       accountsRemarksInput.classList.add('invalid');
+      accountsRemarksError.hidden = false;
       accountsRemarksInput.focus();
       return;
     }
-    accountsRemarksInput.classList.remove('invalid');
+    clearAccountsRemarksError();
+    if (!confirm('Reject this request? The submitter will be emailed with your remarks.')) return;
     submitAccountsDecision('Rejected', remarks);
   });
 
@@ -2961,6 +2988,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     // Exposed so the Accounts Approval flow (a separate <script> block/closure) knows who
     // to resolve as the approver when writing AccountsLookupId.
     window.__currentUserEmail = account.username;
+    window.__currentUserName = name;
     // When an account is already cached, MSAL can resolve almost instantly - fast enough
     // to get here before the browser has finished parsing later <script> blocks (which is
     // where the people-picker's own setup registers itself). Waiting for DOMContentLoaded
@@ -3057,8 +3085,8 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
      RM10,000; Staff Claim is unaffected (already capped at RM10,000, LIC+PIC baseline
      only). See updateSeniorPartnerAvailability in the form's own script block (despite the
      name, it now also toggles Lawyer-In-Charge's visibility/required state) and the
-     needsLawyer/needsSP1/needsSP2 computation mirrored in spFetchRequests's
-     readyForAccounts logic - keep both in sync if this routing rule ever changes again.
+     approval flow, which decides when AccountsStatus becomes "Pending" (the page's
+     readyForAccounts only reads that column - 2026-10-24).
      Senior Partner/Senior
      Partner 2 use the SAME security group as Lawyer-In-Charge/Partner-In-Charge
      (APPROVERS_GROUP_ID) - no separate group. NOTE: the first Senior Partner column is
@@ -3080,10 +3108,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
      checkCurrentUserIsApprover (checks the signed-in account's email against
      APPROVERS_GROUP_ID - the SAME group used for Lawyer/Partner/Senior Partner selection,
      reused as a stand-in "for now" per instruction, NOT a dedicated Accounts/Finance
-     group). A request appears there once every approval its type/amount actually requires
-     is cleared (see the readyForAccounts computation in spFetchRequests, which mirrors
-     updateSeniorPartnerAvailability's thresholds - keep both in sync if the routing rule
-     ever changes) and AccountsStatus is still blank/Pending. "Mark Complete"/"Reject"
+     group). A request appears there whenever its AccountsStatus is exactly "Pending" in
+     SharePoint (see readyForAccounts in spFetchRequests - the approval flow sets that once
+     the earlier stages are done; changed 2026-10-24). "Mark Complete"/"Reject"
      (see window.spSubmitAccountsDecision) PATCH the Master item's fields sub-resource
      directly - note this uses PATCH .../items/{id}/fields with a flat field object, NOT the
      POST-with-{fields:...}-wrapper used for item creation elsewhere in this file - setting
@@ -3405,8 +3432,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       // this request should never even show up as a pickable option in any of the four
       // approver fields (Lawyer/HOD, Partner-In-Charge, Senior Partner 1/2) in the first
       // place - they all share this same search, so excluding here covers all of them.
+      // Exception: the shared vouchers@ mailbox submits on others' behalf, so it may pick itself.
       var selfEmail = (window.__currentUserEmail || '').toLowerCase();
-      if (selfEmail){
+      if (selfEmail && selfEmail !== 'vouchers@stwd.com.my'){
         list = list.filter(function(p){ return (personEmail(p) || '').toLowerCase() !== selfEmail; });
       }
       if (query){
@@ -3736,8 +3764,18 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       ensureSpUser(data.seniorPartnerEmail).catch(function(err){ console.warn('Could not resolve Senior Partner 1 as a SharePoint user - it will be left blank.', err); return null; }),
       ensureSpUser(data.seniorPartner2Email).catch(function(err){ console.warn('Could not resolve Senior Partner 2 as a SharePoint user - it will be left blank.', err); return null; })
     ]).then(function(ids){
-      if (ids[0]) fields.LawyerInChargeLookupId = ids[0];
-      if (ids[1]) fields.PartnerInChargeLookupId = ids[1];
+      // Staff Claim (Office category): the first approver is the HOD, saved to HeadOfDepartment.
+      if (ids[0]){
+        if (data.nominalType === 'staff' && data.staffSubtype === 'office') fields.HeadOfDepartmentLookupId = ids[0];
+        else fields.LawyerInChargeLookupId = ids[0];
+      }
+      // Office Related labels this picker "HOD" and stores it in its own HeadOfDepartment
+      // Person column; every other type keeps it as PartnerInCharge.
+      if (ids[1]){
+        if (data.nominalType === 'office') fields.HeadOfDepartmentLookupId = ids[1];
+        else if (data.nominalType === 'staff' && data.staffSubtype === 'office') fields.SeniorPartner1LookupId = ids[1];
+        else fields.PartnerInChargeLookupId = ids[1];
+      }
       if (ids[2]) fields.SeniorPartner1LookupId = ids[2];
       if (ids[3]) fields.SeniorPartner2LookupId = ids[3];
       return getSpListId(SP_MASTER_LIST_NAME);
@@ -3768,7 +3806,11 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
               // Graph's created-item id comes back as a string ("5") - MasterID is a Number
               // column, so this needs coercing to an actual number or SharePoint rejects it.
               MasterID: parseInt(createdMaster.id, 10),
-              RType: requestTypeText
+              // Staff Claims spell out their category here (Master's RequestType text alone
+              // can't tell Matter from Office); other types mirror RequestType as-is.
+              RType: data.nominalType === 'staff'
+                ? (data.staffSubtype === 'office' ? 'Staff Claim Office' : 'Staff Claim Matter')
+                : requestTypeText
             };
             if (fields.MatterNo) detailFields.MatterNo = fields.MatterNo;
             return graphRequest('/sites/' + siteId + '/lists/' + detailsListId + '/items', {
@@ -3830,6 +3872,8 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         var masterId = df.MasterID;
         if (masterId == null) return;
         (detailsByMaster[masterId] = detailsByMaster[masterId] || []).push({
+          // Details item id - lets an Accounts decision update these rows' Status directly.
+          detailItemId: row.id,
           description: df.PaymentDescription || '',
           invoice: df.InvoiceNo || '',
           amount: parseFloat(df.Amount) || 0
@@ -3843,7 +3887,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       var neededIds = {};
       masterRows.forEach(function(row){
         var f = row.fields || {};
-        [f.LawyerInChargeLookupId, f.PartnerInChargeLookupId, f.SeniorPartner1LookupId, f.SeniorPartner2LookupId, f.AccountsLookupId, f.AuthorLookupId].forEach(function(id){
+        [f.LawyerInChargeLookupId, f.PartnerInChargeLookupId, f.HeadOfDepartmentLookupId, f.SeniorPartner1LookupId, f.SeniorPartner2LookupId, f.AccountsLookupId, f.AuthorLookupId].forEach(function(id){
           if (id) neededIds[id] = true;
         });
       });
@@ -3857,6 +3901,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
           var f = row.fields || {};
           var typeInfo = inferTypeFromText(f.RequestType, f.StaffClaimCategory);
           var lineItems = detailsByMaster[row.id] || [];
+          // Office Related's HOD lives in HeadOfDepartment. Office requests submitted before that
+          // column existed stored it in PartnerInCharge instead (new ones never set
+          // PartnerInCharge), so that's what tells the two apart for Copy From.
+          var hodColumns = typeInfo.nominalType === 'office' && !f.PartnerInChargeLookupId;
           // Master's own Status column is the normal source of truth (see the note near the
           // top of this block), but whatever external process sets it doesn't reliably flip
           // it to Rejected when a request is rejected at the Lawyer stage specifically (the
@@ -3864,17 +3912,22 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
           // Status itself was observed staying "Pending" - confirmed 2026-10-15). A
           // rejection at ANY stage is unambiguous, so it overrides whatever Status says
           // rather than waiting on that external process to catch up.
-          var anyStageRejected = [f.LawyerStatus, f.PartnerStatus, f.SeniorPartner1Status, f.SeniorPartner2Status, f.AccountsStatus].some(function(s){
+          var anyStageRejected = [f.LawyerStatus, f.HeadOfDepartmentStatus, f.PartnerStatus, f.SeniorPartner1Status, f.SeniorPartner2Status, f.AccountsStatus].some(function(s){
             return classifyApprovalStatus(s) === 'rejected';
           });
-          var status = anyStageRejected ? 'rejected' : classifyApprovalStatus(f.Status);
-          // Prefer BankNameForeign over BankName whenever it actually has a value, rather than
+          var status = anyStageRejected ? 'rejected' : classifyApprovalStatus(f.Status);          // Prefer BankNameForeign over BankName whenever it actually has a value, rather than
           // deciding purely off Currency - an MYR request can also have its bank name there
           // now, if "Others" was picked for a bank that isn't in the BankName Choice list.
           var bankNameIsForeign = !!f.BankNameForeign;
           var bankNameValue = bankNameIsForeign ? f.BankNameForeign : (f.BankName || '');
-          var lawyerUser = userById[f.LawyerInChargeLookupId] || {};
-          var partnerUser = userById[f.PartnerInChargeLookupId] || {};
+          // Staff Claim (Office) keeps its first approver (HOD) in HeadOfDepartment - read it
+          // back into the form's first approver field for Copy From.
+          var isStaffOfficeRow = typeInfo.nominalType === 'staff' && typeInfo.staffSubtype === 'office';
+          var lawyerUser = userById[(isStaffOfficeRow && f.HeadOfDepartmentLookupId) ? f.HeadOfDepartmentLookupId : f.LawyerInChargeLookupId] || {};
+          // Staff Claim (Office) keeps its second approver (Senior Partner) in SeniorPartner1.
+          var partnerUser = userById[hodColumns ? f.HeadOfDepartmentLookupId
+            : (isStaffOfficeRow && f.SeniorPartner1LookupId) ? f.SeniorPartner1LookupId
+            : f.PartnerInChargeLookupId] || {};
           var seniorPartnerUser = userById[f.SeniorPartner1LookupId] || {};
           var seniorPartner2User = userById[f.SeniorPartner2LookupId] || {};
           var accountsUser = userById[f.AccountsLookupId] || {};
@@ -3885,22 +3938,11 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
           var seniorPartner2Name = seniorPartner2User.displayName || '';
           var accountsName = accountsUser.displayName || '';
 
-          // Ready for Accounts once every approval the routing rules actually require for
-          // this type/amount is cleared, and Accounts itself hasn't already acted. Mirrors
-          // updateSeniorPartnerAvailability's thresholds in the submit form (kept in sync
-          // manually - see the Senior Partner routing rule note near the top of this block).
-          var totalAmountNum = parseFloat(f.TotalAmount) || 0;
-          var isOfficeType = typeInfo.nominalType === 'office';
-          var isMatterHighValue = typeInfo.nominalType === 'matter' && totalAmountNum >= 10000;
-          var needsSP1 = isOfficeType || isMatterHighValue;
-          var needsSP2 = isOfficeType && totalAmountNum >= 10000;
-          var needsLawyer = !isOfficeType; // Office Related has no Lawyer-In-Charge/HOD step
-          function stageApproved(statusText){ return classifyApprovalStatus(statusText) === 'approved'; }
-          var allApprovalsCleared = (!needsLawyer || stageApproved(f.LawyerStatus)) && stageApproved(f.PartnerStatus) &&
-            (!needsSP1 || stageApproved(f.SeniorPartner1Status)) &&
-            (!needsSP2 || stageApproved(f.SeniorPartner2Status));
-          var accountsNotYetActioned = classifyApprovalStatus(f.AccountsStatus) === 'pending';
-          var readyForAccounts = allApprovalsCleared && accountsNotYetActioned;
+          // Ready for Accounts purely when SharePoint's AccountsStatus reads exactly "Pending" -
+          // the approval flow sets that once the earlier stages are done, so the page doesn't
+          // second-guess the routing itself. (Not classifyApprovalStatus: that also treats a
+          // blank/"New" status as pending.)
+          var readyForAccounts = (f.AccountsStatus || '').trim().toLowerCase() === 'pending';
 
           return {
             ref: row.id,
@@ -3910,9 +3952,13 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
             currency: f.Currency || '',
             status: status,
             date: formatDateTime(row.createdDateTime),
-            lawyerInCharge: lawyerName,
+            lawyerInCharge: (userById[f.LawyerInChargeLookupId] || {}).displayName || '',
             lawyerStatus: f.LawyerStatus || '',
-            partnerInCharge: partnerName,
+            // Details-modal cards show each column exactly as stored (Not set when blank).
+            headOfDepartment: (userById[f.HeadOfDepartmentLookupId] || {}).displayName || '',
+            headOfDepartmentStatus: f.HeadOfDepartmentStatus || '',
+            headOfDepartmentRemarks: f.HeadOfDepartmentRemarks || '',
+            partnerInCharge: (userById[f.PartnerInChargeLookupId] || {}).displayName || '',
             partnerStatus: f.PartnerStatus || '',
             seniorPartner: seniorPartnerName,
             seniorPartnerStatus: f.SeniorPartner1Status || '',
@@ -3969,14 +4015,66 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   };
 
   // ---------- Accounts Approval ----------
-  function sendAccountsDecisionEmail(itemId, decision, remarks, submitterEmail){
+  // Same card layout as the Power Automate approval emails (header band, status pill,
+  // Request Details table, Remarks box) so the Accounts outcome reads as part of that series.
+  // Table-based with inline styles only - Outlook ignores <style> blocks and most CSS layout.
+  function accountsDecisionEmailHtml(itemId, decision, remarks, details){
+    var rejected = decision === 'Rejected';
+    var statusWord = rejected ? 'Rejected' : 'Completed';
+    var main = rejected ? '#c62828' : '#2e7d32';
+    var tint = rejected ? '#fdecea' : '#eef6ea';
+    var tintBorder = rejected ? '#f5c2bd' : '#cfe5c6';
+    var esc = escapeHtmlLocal;
+    var font = "font-family:'Segoe UI',Arial,sans-serif;";
+    function detailRow(label, value, isLast, emphasise){
+      return '<tr>' +
+        '<td style="' + font + 'padding:12px 14px;font-size:13px;color:#5f6368;width:40%;' + (isLast ? '' : 'border-bottom:1px solid #e8eaed;') + '">' + label + '</td>' +
+        '<td style="' + font + 'padding:12px 14px;' + (emphasise ? 'font-size:16px;font-weight:700;color:' + main + ';' : 'font-size:13px;color:#202124;') + (isLast ? '' : 'border-bottom:1px solid #e8eaed;') + '">' + esc(value || '-') + '</td>' +
+        '</tr>';
+    }
+    var closingLine = rejected
+      ? 'Your request has been rejected by Accounts. Please refer to the remarks above.'
+      : 'Your request has been completed by Accounts.';
+    return '<div style="background:#f3f4f8;padding:24px 0;">' +
+      '<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" width="460" style="width:460px;max-width:100%;background:#ffffff;border:1px solid #e3e5e8;border-radius:6px;border-collapse:separate;">' +
+      '<tr><td style="' + font + 'background:' + main + ';padding:16px 20px;border-radius:6px 6px 0 0;">' +
+        '<div style="font-size:11px;letter-spacing:0.5px;color:#f1f3f4;text-transform:uppercase;">E-Voucher Request</div>' +
+        '<div style="font-size:19px;font-weight:700;color:#ffffff;margin-top:2px;">' + statusWord + '</div>' +
+      '</td></tr>' +
+      '<tr><td style="' + font + 'padding:22px 20px 8px;font-size:13px;color:#202124;">' +
+        '<p style="margin:0 0 14px;">Dear ' + esc(details.submitterName || 'Sir/Madam') + ',</p>' +
+        '<p style="margin:0 0 18px;">Your E-Voucher has been ' +
+          '<span style="display:inline-block;background:' + main + ';color:#ffffff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:10px;text-transform:uppercase;">' + statusWord + '</span>' +
+          ' by <strong>' + esc(details.approverName || 'Accounts') + '</strong>.</p>' +
+        '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f7f8f7;border:1px solid #e8eaed;border-left:4px solid ' + main + ';border-collapse:separate;">' +
+          '<tr><td colspan="2" style="' + font + 'padding:12px 14px;font-size:13px;font-weight:700;color:' + main + ';border-bottom:1px solid #e8eaed;">Request Details</td></tr>' +
+          detailRow('Request ID', String(itemId)) +
+          detailRow('Request Type', details.requestType) +
+          detailRow('Payee Name', details.payee) +
+          detailRow('Mode of Payment', details.modeOfPayment) +
+          detailRow('Total Amount', details.totalAmount, true, true) +
+        '</table>' +
+        (remarks
+          ? '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:14px;background:' + tint + ';border:1px solid ' + tintBorder + ';border-radius:4px;border-collapse:separate;">' +
+              '<tr><td style="' + font + 'padding:12px 14px;font-size:12px;color:' + main + ';">' +
+                '<div style="font-weight:700;margin-bottom:3px;">Remarks:</div>' + esc(remarks) +
+              '</td></tr></table>'
+          : '') +
+        '<p style="margin:18px 0 12px;">' + closingLine + '</p>' +
+        '<p style="margin:0 0 14px;">Thank you.</p>' +
+      '</td></tr>' +
+      '<tr><td style="' + font + 'background:#f8f9fa;padding:12px 20px;font-size:10px;color:#80868b;text-align:center;border-radius:0 0 6px 6px;">This is an automated message. Please do not reply to this email.</td></tr>' +
+      '</table></div>';
+  }
+
+  function sendAccountsDecisionEmail(itemId, decision, remarks, submitterEmail, details){
     if (!submitterEmail){
       console.warn('No submitter email resolved for item ' + itemId + ' - skipping notification email.');
       return Promise.resolve();
     }
+    details = details || {};
+    details.approverName = window.__currentUserName || '';
     var statusWord = decision === 'Rejected' ? 'Rejected' : 'Completed';
-    var lines = ['Your e-voucher payment request (ID ' + itemId + ') has been ' + statusWord.toLowerCase() + ' by Accounts.'];
-    if (remarks) lines.push('', 'Remarks: ' + remarks);
     return window.getGraphToken(['Mail.Send']).then(function(token){
       return fetch(GRAPH_BASE + '/me/sendMail', {
         method: 'POST',
@@ -3986,8 +4084,8 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         },
         body: JSON.stringify({
           message: {
-            subject: 'E-Voucher Request ID ' + itemId + ' - ' + statusWord,
-            body: { contentType: 'Text', content: lines.join('\n') },
+            subject: statusWord.toUpperCase() + ' - E-Voucher Request - ID: ' + itemId,
+            body: { contentType: 'HTML', content: accountsDecisionEmailHtml(itemId, decision, remarks, details) },
             toRecipients: [{ emailAddress: { address: submitterEmail } }]
           }
         })
@@ -4002,7 +4100,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   // Graph PATCH to the item's /fields sub-resource - different from the POST-with-
   // {fields:...}-wrapper used everywhere else in this file for item creation), mirrors the
   // decision into Master's own overall Status column, then emails the submitter.
-  window.spSubmitAccountsDecision = function(itemId, decision, remarks, submitterEmail){
+  window.spSubmitAccountsDecision = function(itemId, decision, remarks, submitterEmail, emailDetails, detailItemIdsForMaster){
     return ensureSpUser(window.__currentUserEmail).catch(function(err){
       console.warn('Could not resolve the signed-in Accounts approver as a SharePoint user - AccountsLookupId will be left blank.', err);
       return null;
@@ -4023,7 +4121,28 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         });
       });
     }).then(function(){
-      return sendAccountsDecisionEmail(itemId, decision, remarks, submitterEmail).catch(function(err){
+      // Mirror the outcome onto every line item in E-Voucher Details: Status "C" (Complete) or
+      // "R" (Rejected). Master is already saved by now, so a failure here is reported but
+      // doesn't undo the decision or stop the email.
+      var detailItemIds = detailItemIdsForMaster || [];
+      if (!detailItemIds.length) return;
+      var detailStatus = decision === 'Rejected' ? 'R' : 'C';
+      return getSpListId(SP_DETAILS_LIST_NAME).then(function(detailsListId){
+        return getSpSiteId().then(function(siteId){
+          return Promise.all(detailItemIds.map(function(detailId){
+            return graphRequest('/sites/' + siteId + '/lists/' + detailsListId + '/items/' + detailId + '/fields', {
+              method: 'PATCH',
+              body: JSON.stringify({ Status: detailStatus })
+            });
+          }));
+        });
+      }).catch(function(err){
+        console.warn('Accounts decision was saved, but E-Voucher Details Status could not be updated.', err);
+        alert('The Accounts decision was saved, but the line items\' Status in E-Voucher Details could not be updated to "' +
+          detailStatus + '": ' + ((err && err.message) || 'Unknown error'));
+      });
+    }).then(function(){
+      return sendAccountsDecisionEmail(itemId, decision, remarks, submitterEmail, emailDetails).catch(function(err){
         console.warn('Accounts decision was saved, but the notification email failed to send.', err);
       });
     });

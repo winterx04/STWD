@@ -13,7 +13,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.10.24.20';
+  window.__EVOUCHER_VERSION__ = '2026.10.26.2';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -1773,8 +1773,12 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   function updateSeniorPartnerAvailability(total){
     var isOffice = nominalType.value === 'office';
     var isHighValue = total >= SENIOR_PARTNER_THRESHOLD;
-    var needSP1 = isOffice || (nominalType.value === 'matter' && isHighValue);
-    var needSP2 = isOffice && isHighValue;
+    // FPX drops the Senior Partner requirement that the >=RM10,000 threshold would otherwise
+    // trigger - Office Related's own baseline (always needs 1 Senior Partner, regardless of
+    // amount) is untouched since that one was never conditional on the threshold to begin with.
+    var isFPX = modeOfPaymentSelect.value.toLowerCase().indexOf('fpx') !== -1;
+    var needSP1 = isOffice || (nominalType.value === 'matter' && isHighValue && !isFPX);
+    var needSP2 = isOffice && isHighValue && !isFPX;
     var needLawyer = !isOffice;
 
     partnerInChargeLabel.textContent = partnerInChargeLabelText() + ' *';
@@ -3087,9 +3091,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
      name, it now also toggles Lawyer-In-Charge's visibility/required state) and the
      approval flow, which decides when AccountsStatus becomes "Pending" (the page's
      readyForAccounts only reads that column - 2026-10-24).
-     Senior Partner/Senior
-     Partner 2 use the SAME security group as Lawyer-In-Charge/Partner-In-Charge
-     (APPROVERS_GROUP_ID) - no separate group. NOTE: the first Senior Partner column is
+     Senior Partner/Senior Partner 2 are scoped to their own GROUP_SENIOR_PARTNERS group
+     (2026-10-26: each approver role - HOD/Lawyer/Partner-In-Charge/Senior Partner - now has
+     its own dedicated security group; previously all four shared one placeholder group).
+     NOTE: the first Senior Partner column is
      named "SeniorPartner1" in SharePoint (confirmed via live column dump 2026-09-27) -
      the form/JS internally calls it "seniorPartner" (no digit) throughout, but every
      Graph-facing field reference uses SeniorPartner1/SeniorPartner1Status/
@@ -3105,10 +3110,11 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
      look like they belong to a later accounting/approval workflow, not the submitter.
 
      Accounts Approval (2026-10-10): a built-in final-stage review screen, gated by
-     checkCurrentUserIsApprover (checks the signed-in account's email against
-     APPROVERS_GROUP_ID - the SAME group used for Lawyer/Partner/Senior Partner selection,
-     reused as a stand-in "for now" per instruction, NOT a dedicated Accounts/Finance
-     group). A request appears there whenever its AccountsStatus is exactly "Pending" in
+     checkCurrentUserIsApprover (checks the signed-in account's email against all four
+     approver groups - GROUP_HODS/GROUP_LAWYERS/GROUP_PARTNERS_IN_CHARGE/
+     GROUP_SENIOR_PARTNERS, membership in any one is enough - reused as a stand-in "for now"
+     per instruction, NOT a dedicated Accounts/Finance group). A request appears there
+     whenever its AccountsStatus is exactly "Pending" in
      SharePoint (see readyForAccounts in spFetchRequests - the approval flow sets that once
      the earlier stages are done; changed 2026-10-24). "Mark Complete"/"Reject"
      (see window.spSubmitAccountsDecision) PATCH the Master item's fields sub-resource
@@ -3172,10 +3178,13 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
        lawyers/partners/accounts staff).
      - CC was removed from the form entirely - there was never a CC column on either
        SharePoint list to write it to, so it was collected but never actually saved.
-     - Lawyer-In-Charge/Partner in charge picker is scoped to one security group
-       (APPROVERS_GROUP_ID = 78d49110-d3fa-44ce-abfc-c6a3b199c0e1, see searchPeople/
-       fetchGroupMembers below) instead of an org-wide /me/people search - only that
-       group's members are selectable/suggested.
+     - Each approver picker is scoped to its own dedicated security group (GROUP_HODS,
+       GROUP_LAWYERS, GROUP_PARTNERS_IN_CHARGE, GROUP_SENIOR_PARTNERS - see searchPeople/
+       fetchGroupMembers/setupPeoplePicker registrations below) instead of an org-wide
+       /me/people search - only that role's group members are selectable/suggested. The
+       Lawyer-In-Charge/HOD field and the Partner-In-Charge field each switch which group
+       they search depending on the request type, since the same field does double duty as
+       a different role for Office Related vs other types (see their getGroupId callbacks).
      - MatterNo's SharePoint column is typed as Number (on both Master and Details), but
        matter numbers aren't guaranteed to be purely numeric - the frontend sends whatever
        was typed as-is rather than assuming/forcing a numeric format; SharePoint will
@@ -3391,16 +3400,19 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   }
 
   // ---------- Organization people-picker (Lawyer-In-Charge / HOD, Partner in charge) ----------
-  // Scoped to this one security group (its members are the eligible lawyers/partners/HODs)
-  // rather than an org-wide search - the whole membership is fetched once and cached, then
-  // filtered client-side per keystroke, since /groups/{id}/members has no fuzzy "relevance"
-  // search the way /me/people does.
-  var APPROVERS_GROUP_ID = '78d49110-d3fa-44ce-abfc-c6a3b199c0e1';
-  var groupMembersPromise = null;
+  // Each approver role now has its own dedicated security group (previously all four picker
+  // fields shared one group as a placeholder). Which group a field searches can depend on the
+  // request type - see the setupPeoplePicker registrations below for exactly which field uses
+  // which group and why.
+  var GROUP_HODS = '5ba231e6-8d8e-4b65-ae43-4f933d5aeeda';
+  var GROUP_LAWYERS = '0894bbf8-4f1b-4b01-aa26-63491a367976';
+  var GROUP_PARTNERS_IN_CHARGE = '6198d67e-379e-4717-9390-43ed4b135201';
+  var GROUP_SENIOR_PARTNERS = '71257bdf-677b-40e1-9a07-81fad20d0a2c';
+  var groupMembersPromises = {};
 
-  function fetchGroupMembers(){
-    if (groupMembersPromise) return groupMembersPromise;
-    groupMembersPromise = window.getGraphToken(['GroupMember.Read.All', 'User.ReadBasic.All']).then(function(token){
+  function fetchGroupMembers(groupId){
+    if (groupMembersPromises[groupId]) return groupMembersPromises[groupId];
+    var promise = window.getGraphToken(['GroupMember.Read.All', 'User.ReadBasic.All']).then(function(token){
       var headers = { 'Authorization': 'Bearer ' + token.accessToken };
       function fetchPage(url, acc){
         return fetch(url, { headers: headers }).then(function(res){
@@ -3415,18 +3427,19 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       // groups/devices) - casting to /microsoft.graph.user both filters to actual people
       // and is required for $select to accept user-only properties like mail/UPN without
       // erroring.
-      return fetchPage(GRAPH_BASE + '/groups/' + APPROVERS_GROUP_ID + '/members/microsoft.graph.user?$select=id,displayName,mail,userPrincipalName&$top=999', []);
+      return fetchPage(GRAPH_BASE + '/groups/' + groupId + '/members/microsoft.graph.user?$select=id,displayName,mail,userPrincipalName&$top=999', []);
     }).catch(function(err){
-      groupMembersPromise = null; // don't cache a failure - let the next attempt retry
+      delete groupMembersPromises[groupId]; // don't cache a failure - let the next attempt retry
       throw err;
     });
-    return groupMembersPromise;
+    groupMembersPromises[groupId] = promise;
+    return promise;
   }
 
   // No query -> the group's own member list (so clicking the field alone already shows a
   // dropdown of people, per the "click to choose OR type to search" requirement).
-  function searchPeople(query){
-    return fetchGroupMembers().then(function(members){
+  function searchPeople(query, groupId){
+    return fetchGroupMembers(groupId).then(function(members){
       var list = members;
       // A lawyer/partner can't verify or approve their own claim, so the person submitting
       // this request should never even show up as a pickable option in any of the four
@@ -3468,7 +3481,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
   var openPeoplePickers = [];
 
-  // config: { inputId, suggestionsId, hiddenEmailId, excludeEmailId }
+  // config: { inputId, suggestionsId, hiddenEmailId, excludeEmailId, groupId, getGroupId }
+  // Either groupId (fixed) or getGroupId() (a function, re-evaluated on every search - for a
+  // field whose applicable role/group changes with the request type) must be given.
   function setupPeoplePicker(config){
     var input = document.getElementById(config.inputId);
     var box = document.getElementById(config.suggestionsId);
@@ -3497,7 +3512,8 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     }
 
     function runSearch(query){
-      searchPeople(query).then(function(people){
+      var groupId = typeof config.getGroupId === 'function' ? config.getGroupId() : config.groupId;
+      searchPeople(query, groupId).then(function(people){
         // Some pickers exclude whoever is CURRENTLY picked in another field (e.g. Senior
         // Partner 1 can't be the same person as Partner-In-Charge) - read that other field's
         // live value each time rather than a fixed email, so it stays correct as that other
@@ -4148,22 +4164,28 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     });
   };
 
-  // Checks the signed-in account's email against the same security group used for the
-  // Lawyer/Partner/Senior Partner picker (APPROVERS_GROUP_ID) - a stand-in for a dedicated
-  // Accounts/Finance group until one exists, per instruction ("for now use the current
-  // security group"). Gates visibility of the Accounts Approval nav item/view only - it is
-  // NOT itself a security boundary, since SharePoint item-level permissions (set outside
+  // Checks the signed-in account's email against ALL FOUR approver security groups (HODs,
+  // Lawyers, Partners-In-Charge, Senior Partners) - a stand-in for a dedicated Accounts/
+  // Finance group until one exists, per instruction ("for now use the current security
+  // groups"). Membership in any one of them is enough, preserving the original single-group
+  // behaviour this replaced. Gates visibility of the Accounts Approval nav item/view only - it
+  // is NOT itself a security boundary, since SharePoint item-level permissions (set outside
   // this file) are what actually control who can write AccountsStatus etc.
   window.checkCurrentUserIsApprover = function(account){
     var email = (account && account.username || '').toLowerCase();
     if (!email) return Promise.resolve(false);
-    return fetchGroupMembers().then(function(members){
-      return members.some(function(m){
-        return (m.mail || '').toLowerCase() === email || (m.userPrincipalName || '').toLowerCase() === email;
+    var allGroupIds = [GROUP_HODS, GROUP_LAWYERS, GROUP_PARTNERS_IN_CHARGE, GROUP_SENIOR_PARTNERS];
+    return Promise.all(allGroupIds.map(function(groupId){
+      return fetchGroupMembers(groupId).catch(function(err){
+        console.warn('Could not check group membership for ' + groupId + '.', err);
+        return [];
       });
-    }).catch(function(err){
-      console.warn('Could not check Accounts approver group membership.', err);
-      return false;
+    })).then(function(memberLists){
+      return memberLists.some(function(members){
+        return members.some(function(m){
+          return (m.mail || '').toLowerCase() === email || (m.userPrincipalName || '').toLowerCase() === email;
+        });
+      });
     });
   };
 
@@ -4176,13 +4198,35 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
   window.eVoucherSignInHandlers.push(function(){
     loadDynamicChoices();
-    setupPeoplePicker({ inputId: 'lawyerInCharge', hiddenEmailId: 'lawyerInChargeEmail', suggestionsId: 'lawyerInChargeSuggestions' });
-    setupPeoplePicker({ inputId: 'partnerInCharge', hiddenEmailId: 'partnerInChargeEmail', suggestionsId: 'partnerInChargeSuggestions' });
-    // Same security group as Lawyer/Partner (per instruction) - no separate group ID needed.
+    // This field is "Lawyer" for Matter Related and Staff Claims (Matter category), but "HOD"
+    // specifically for Staff Claims (Office category) - saved to HeadOfDepartment there
+    // instead of LawyerInCharge (see spSubmitRequest/lawyerInChargeLabelText). Hidden
+    // entirely for Office Related. Re-checked live since the role depends on request type.
+    setupPeoplePicker({
+      inputId: 'lawyerInCharge', hiddenEmailId: 'lawyerInChargeEmail', suggestionsId: 'lawyerInChargeSuggestions',
+      getGroupId: function(){
+        var isStaffOffice = document.getElementById('nominalType').value === 'staff' && document.getElementById('staffSubtype').value === 'office';
+        return isStaffOffice ? GROUP_HODS : GROUP_LAWYERS;
+      }
+    });
+    // This field is "Partner-In-Charge" normally, "HOD" for Office Related (saved to
+    // HeadOfDepartment instead of PartnerInCharge), and "Senior Partner 1" for Staff Claims
+    // (Office category) specifically (saved to SeniorPartner1 instead) - see
+    // partnerInChargeLabelText/spSubmitRequest for the exact same three-way split.
+    setupPeoplePicker({
+      inputId: 'partnerInCharge', hiddenEmailId: 'partnerInChargeEmail', suggestionsId: 'partnerInChargeSuggestions',
+      getGroupId: function(){
+        var nominalTypeVal = document.getElementById('nominalType').value;
+        var staffSubtypeVal = document.getElementById('staffSubtype').value;
+        if (nominalTypeVal === 'office') return GROUP_HODS;
+        if (nominalTypeVal === 'staff' && staffSubtypeVal === 'office') return GROUP_SENIOR_PARTNERS;
+        return GROUP_PARTNERS_IN_CHARGE;
+      }
+    });
     // Partner-In-Charge and Senior Partner 1 can't be the same person, so whoever is
     // currently Partner-In-Charge is excluded from this picker's own suggestions.
-    setupPeoplePicker({ inputId: 'seniorPartner', hiddenEmailId: 'seniorPartnerEmail', suggestionsId: 'seniorPartnerSuggestions', excludeEmailId: 'partnerInChargeEmail' });
-    setupPeoplePicker({ inputId: 'seniorPartner2', hiddenEmailId: 'seniorPartner2Email', suggestionsId: 'seniorPartner2Suggestions' });
+    setupPeoplePicker({ inputId: 'seniorPartner', hiddenEmailId: 'seniorPartnerEmail', suggestionsId: 'seniorPartnerSuggestions', excludeEmailId: 'partnerInChargeEmail', groupId: GROUP_SENIOR_PARTNERS });
+    setupPeoplePicker({ inputId: 'seniorPartner2', hiddenEmailId: 'seniorPartner2Email', suggestionsId: 'seniorPartner2Suggestions', groupId: GROUP_SENIOR_PARTNERS });
   });
 })();
 </script>

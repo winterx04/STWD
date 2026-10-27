@@ -13,7 +13,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.10.26.2';
+  window.__EVOUCHER_VERSION__ = '2026.10.27.1';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -3428,6 +3428,12 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       // and is required for $select to accept user-only properties like mail/UPN without
       // erroring.
       return fetchPage(GRAPH_BASE + '/groups/' + groupId + '/members/microsoft.graph.user?$select=id,displayName,mail,userPrincipalName&$top=999', []);
+    }).then(function(members){
+      // Graph returns members in arbitrary (effectively random) order, not alphabetical -
+      // sort once here so every picker's suggestion list is consistently A-Z.
+      return members.slice().sort(function(a, b){
+        return (a.displayName || '').localeCompare(b.displayName || '');
+      });
     }).catch(function(err){
       delete groupMembersPromises[groupId]; // don't cache a failure - let the next attempt retry
       throw err;
@@ -3461,7 +3467,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
                  (p.userPrincipalName || '').toLowerCase().indexOf(q) !== -1;
         });
       }
-      return list.slice(0, 10);
+      // No cap here - these are small, role-scoped groups (not an org-wide search), and
+      // capping at an arbitrary count was hiding real names further down the (now
+      // alphabetical) list. The suggestions box itself scrolls if the list is long.
+      return list;
     });
   }
 

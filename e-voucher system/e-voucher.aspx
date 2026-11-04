@@ -864,7 +864,7 @@
       <i class="fa-solid fa-list-check"></i>
       <span>View requests</span>
     </button>
-    <!-- Only revealed for members of the approvers security group - see
+    <!-- Only revealed for members of the Accounts groups (GROUP_ACC) or ACC_EMAILS - see
          checkCurrentUserIsApprover in the SharePoint integration script block. -->
     <button type="button" class="nav-item" data-view="accounts" id="accountsNavItem" hidden>
       <i class="fa-solid fa-clipboard-check"></i>
@@ -3110,10 +3110,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
      look like they belong to a later accounting/approval workflow, not the submitter.
 
      Accounts Approval (2026-10-10): a built-in final-stage review screen, gated by
-     checkCurrentUserIsApprover (checks the signed-in account's email against all four
-     approver groups - GROUP_HODS/GROUP_LAWYERS/GROUP_PARTNERS_IN_CHARGE/
-     GROUP_SENIOR_PARTNERS, membership in any one is enough - reused as a stand-in "for now"
-     per instruction, NOT a dedicated Accounts/Finance group). A request appears there
+     checkCurrentUserIsApprover (checks the signed-in account's email against ACC_EMAILS and
+     the groups in GROUP_ACC - for now all four approver groups plus vouchers@stwd.com.my,
+     2026-11-04, until a dedicated Accounts group exists). A request appears there
      whenever its AccountsStatus is exactly "Pending" in
      SharePoint (see readyForAccounts in spFetchRequests - the approval flow sets that once
      the earlier stages are done; changed 2026-10-24). "Mark Complete"/"Reject"
@@ -3408,6 +3407,11 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var GROUP_LAWYERS = '0894bbf8-4f1b-4b01-aa26-63491a367976';
   var GROUP_PARTNERS_IN_CHARGE = '6198d67e-379e-4717-9390-43ed4b135201';
   var GROUP_SENIOR_PARTNERS = '71257bdf-677b-40e1-9a07-81fad20d0a2c';
+  // Who sees the Accounts Approval view (see checkCurrentUserIsApprover): members of any group
+  // in GROUP_ACC, plus any account listed in ACC_EMAILS. For now GROUP_ACC is all four approver
+  // groups - swap in a dedicated Accounts group's Object ID once one exists in Entra ID.
+  var GROUP_ACC = [GROUP_HODS, GROUP_LAWYERS, GROUP_PARTNERS_IN_CHARGE, GROUP_SENIOR_PARTNERS];
+  var ACC_EMAILS = ['vouchers@stwd.com.my'];
   var groupMembersPromises = {};
 
   function fetchGroupMembers(groupId){
@@ -4173,18 +4177,17 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     });
   };
 
-  // Checks the signed-in account's email against ALL FOUR approver security groups (HODs,
-  // Lawyers, Partners-In-Charge, Senior Partners) - a stand-in for a dedicated Accounts/
-  // Finance group until one exists, per instruction ("for now use the current security
-  // groups"). Membership in any one of them is enough, preserving the original single-group
-  // behaviour this replaced. Gates visibility of the Accounts Approval nav item/view only - it
-  // is NOT itself a security boundary, since SharePoint item-level permissions (set outside
-  // this file) are what actually control who can write AccountsStatus etc.
+  // Checks the signed-in account's email against ACC_EMAILS first, then against the members of
+  // every group in GROUP_ACC (membership in any one is enough). Gates visibility of the Accounts
+  // Approval nav item/view only - it is NOT itself a security boundary, since SharePoint
+  // item-level permissions (set outside this file) are what actually control who can write
+  // AccountsStatus etc.
   window.checkCurrentUserIsApprover = function(account){
     var email = (account && account.username || '').toLowerCase();
     if (!email) return Promise.resolve(false);
-    var allGroupIds = [GROUP_HODS, GROUP_LAWYERS, GROUP_PARTNERS_IN_CHARGE, GROUP_SENIOR_PARTNERS];
-    return Promise.all(allGroupIds.map(function(groupId){
+    var isListedEmail = ACC_EMAILS.some(function(e){ return e.toLowerCase() === email; });
+    if (isListedEmail) return Promise.resolve(true);
+    return Promise.all(GROUP_ACC.map(function(groupId){
       return fetchGroupMembers(groupId).catch(function(err){
         console.warn('Could not check group membership for ' + groupId + '.', err);
         return [];

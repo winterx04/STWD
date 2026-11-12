@@ -13,7 +13,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.10.27.1';
+  window.__EVOUCHER_VERSION__ = '2026.11.12.21';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -657,6 +657,33 @@
   .btn-view-row{border-radius:20px;}
   .btn-view-row:hover{background:var(--navy);color:var(--white);}
 
+  /* Reimbursement view - checkbox list of Completed requests + Process/Confirm modal. */
+  .reimb-check{min-width:0;width:18px;height:18px;accent-color:var(--primary);cursor:pointer;vertical-align:middle;}
+  .reimb-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:16px;}
+  .reimb-selected-info{font-size:13px;font-weight:600;color:var(--text-muted);}
+  .reimb-amount{text-align:right;white-space:nowrap;}
+  /* ID-scoped so these beat the global input[type=text/number]{width:100%} rule. */
+  #reimbursementDetailsTable .reimb-type-input{min-width:0;width:calc(9ch + 18px);padding:6px 8px;font-size:13px;text-transform:uppercase;}
+  #reimbursementDetailsTable .reimb-rm-input{min-width:0;width:120px;padding:6px 8px;font-size:13px;text-align:right;}
+  #reimbursementDetailsTable .reimb-type-cell{width:1%;white-space:nowrap;}
+  /* Fits an 8-digit ID chip (chip's own 10px side padding) plus 12px cell padding each side. */
+  #reimbursementDetailsTable .reimb-id-cell{width:calc(8ch + 44px);padding-left:12px;padding-right:12px;white-space:nowrap;}
+  .reimb-total-row td{font-weight:700;color:var(--navy);background:var(--bg);}
+  #reimbursementDetailsTable tbody td{vertical-align:middle;}
+  #reimbursementDetailsTable tbody tr{background:var(--white);}
+  #reimbursementDetailsTable td.reimb-group-cell{border-right:1px solid var(--border);}
+  #view-reimbursement .type-pill{min-width:112px;text-align:center;}
+  /* Desktop list: short columns hug their content on one line; Item Description (5th) and
+     Payee (6th) share the remaining width. The mobile card layout below 761px is untouched. */
+  @media (min-width:761px){
+    #view-reimbursement .requests-table td{vertical-align:middle;}
+    #view-reimbursement .requests-table th:not(:nth-child(5)):not(:nth-child(6)),
+    #view-reimbursement .requests-table td:not(:nth-child(5)):not(:nth-child(6)){width:1%;white-space:nowrap;}
+    #view-reimbursement .requests-table th:nth-child(8),
+    #view-reimbursement .requests-table td:nth-child(8){text-align:right;}
+    #view-reimbursement .requests-table td:nth-child(6){min-width:140px;}
+  }
+
   .empty-state{
     text-align:center;padding:40px 20px;color:var(--text-muted);font-size:13.5px;
   }
@@ -869,6 +896,11 @@
     <button type="button" class="nav-item" data-view="accounts" id="accountsNavItem" hidden>
       <i class="fa-solid fa-clipboard-check"></i>
       <span>Accounts Approval</span>
+    </button>
+    <!-- Same Accounts-only gate as Accounts Approval above. -->
+    <button type="button" class="nav-item" data-view="reimbursement" id="reimbursementNavItem" hidden>
+      <i class="fa-solid fa-money-check-dollar"></i>
+      <span>Reimbursement</span>
     </button>
   </nav>
 
@@ -1315,6 +1347,60 @@
       </div>
     </section>
 
+    <!-- Accounts-only, same gate as view-accounts. Lists E-Voucher Details line items with
+         Status "C" and Export not yet "Y"; ticked ones go through Process (Type per item +
+         total) -> Confirm to process (Excel download, then Export "Y" on each item). -->
+    <section id="view-reimbursement" class="view" hidden>
+      <div class="view-wrap">
+        <div class="alert alert-error" id="reimbursementLoadError" hidden>
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span id="reimbursementLoadErrorText"></span>
+        </div>
+
+        <div class="requests-search">
+          <i class="fa-solid fa-magnifying-glass requests-search-icon"></i>
+          <input type="text" id="reimbursementSearchInput" placeholder="Search by ID, Type, Matter No, Item Description, Amount, Payee, Date...">
+          <button type="button" class="requests-search-clear" id="reimbursementSearchClear" hidden title="Clear search"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="card">
+          <div class="section-head">
+            <div class="section-head-left">
+              <div class="section-icon done"><i class="fa-solid fa-money-check-dollar"></i></div>
+              <div>
+                <h2>Pending Export</h2>
+                <div class="section-sub">Tick the items to reimburse, then click Process</div>
+              </div>
+            </div>
+            <span class="section-count">Total: <span id="reimbursementCountBadge">0</span></span>
+          </div>
+          <div class="table-wrap">
+            <table class="requests-table">
+              <thead>
+                <tr>
+                  <th><input type="checkbox" class="reimb-check" id="reimbursementSelectAll" title="Select all shown" aria-label="Select all shown"></th>
+                  <th>ID</th>
+                  <th>Type</th>
+                  <th>Matter No</th>
+                  <th>Item Description</th>
+                  <th>Payee</th>
+                  <th>Date</th>
+                  <th>Amount</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="reimbursementBody"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="reimbursementEmpty" hidden><i class="fa-solid fa-inbox"></i>No items pending export.</div>
+          <div class="reimb-toolbar">
+            <span class="reimb-selected-info" id="reimbursementSelectedInfo">No items selected</span>
+            <button type="button" class="btn btn-primary" id="reimbursementProcessBtn" disabled>Process</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
   </div>
 </div>
 
@@ -1334,6 +1420,27 @@
       <button type="button" class="btn btn-primary" id="resubmitRequestBtn" hidden><i class="fa-solid fa-pen-to-square"></i> Edit &amp; Resubmit</button>
       <button type="button" class="btn btn-danger" id="accountsRejectBtn" hidden><i class="fa-solid fa-circle-xmark"></i> Reject</button>
       <button type="button" class="btn btn-success" id="accountsCompleteBtn" hidden><i class="fa-solid fa-circle-check"></i> Mark Complete</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="reimbursementModal" hidden>
+  <div class="modal-card modal-card-details">
+    <button type="button" class="modal-close-x" id="closeReimbursementModalBtn" title="Close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    <h2>Reimbursement Details</h2>
+    <p class="hint" id="reimbursementForeignHint" style="margin:-6px 0 14px;" hidden>Some items are not in MYR - enter their amount in MYR. The Excel file uses the MYR amount.</p>
+    <div class="table-wrap">
+      <table id="reimbursementDetailsTable">
+        <thead id="reimbursementDetailsHead"></thead>
+        <tbody id="reimbursementDetailsBody"></tbody>
+      </table>
+    </div>
+    <datalist id="reimbursementTypeCodes"></datalist>
+    <p class="hint warning" id="reimbursementTypeError" hidden>Please fill in a Type for every item.</p>
+    <p class="hint warning" id="reimbursementRmError" hidden>Please enter a MYR amount greater than 0 for every non-MYR item.</p>
+    <div class="rd-actions" style="margin-top:16px;">
+      <button type="button" class="btn btn-outline" id="reimbursementCancelBtn">Cancel</button>
+      <button type="button" class="btn btn-success" id="reimbursementConfirmBtn"><i class="fa-solid fa-file-excel"></i> Confirm to process</button>
     </div>
   </div>
 </div>
@@ -2504,6 +2611,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     statRejectedCount.textContent = rejectedCount;
     pendingCountBadge.textContent = pendingIndices.length;
     completedCountBadge.textContent = completedIndices.length;
+    renderReimbursementList();
   }
 
   var requestsLoadError = document.getElementById('requestsLoadError');
@@ -2512,11 +2620,15 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var accountsLoadError = document.getElementById('accountsLoadError');
   var accountsLoadErrorText = document.getElementById('accountsLoadErrorText');
 
+  var reimbursementLoadError = document.getElementById('reimbursementLoadError');
+  var reimbursementLoadErrorText = document.getElementById('reimbursementLoadErrorText');
+
   function loadRequestsFromSharePoint(){
     if (typeof window.spFetchRequests !== 'function') return;
     return window.spFetchRequests().then(function(items){
       requestsLoadError.hidden = true;
       accountsLoadError.hidden = true;
+      reimbursementLoadError.hidden = true;
       SUBMITTED_REQUESTS = items;
       renderRequestsList();
     }).catch(function(err){
@@ -2525,6 +2637,8 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       requestsLoadError.hidden = false;
       accountsLoadErrorText.textContent = 'Could not load requests from SharePoint: ' + err.message;
       accountsLoadError.hidden = false;
+      reimbursementLoadErrorText.textContent = 'Could not load requests from SharePoint: ' + err.message;
+      reimbursementLoadError.hidden = false;
     });
   }
 
@@ -2703,6 +2817,374 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
   closeRequestDetailsBtn.addEventListener('click', function(){ requestDetailsModal.hidden = true; });
 
+  // ---------- Reimbursement: completed line items -> Process -> Excel ----------
+  // Accounts-only (nav item revealed by checkCurrentUserIsApprover, same as Accounts Approval).
+  // Lists every E-Voucher Details line item whose Status is "C" (Complete) and whose Export
+  // isn't "Y" yet; ticked items go to reimbursementModal, where each gets a Type code (and an
+  // MYR amount if its request isn't in MYR) before "Confirm to process" downloads them as an
+  // Excel file (Matter No / Type / Amount in MYR / Item Description) and then, on each Details
+  // item, saves ItemType, Export "Y", ExportDate and ExportPerson via spMarkDetailsExported.
+  // Only SRCH is confirmed so far - add further codes here as they're agreed (they show up as
+  // suggestions in each item's Type field; any free text is still accepted).
+  var REIMBURSEMENT_TYPE_CODES = ['SRCH'];
+  var SHEETJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+
+  var reimbursementBody = document.getElementById('reimbursementBody');
+  var reimbursementEmpty = document.getElementById('reimbursementEmpty');
+  var reimbursementCountBadge = document.getElementById('reimbursementCountBadge');
+  var reimbursementSelectAll = document.getElementById('reimbursementSelectAll');
+  var reimbursementSelectedInfo = document.getElementById('reimbursementSelectedInfo');
+  var reimbursementProcessBtn = document.getElementById('reimbursementProcessBtn');
+  var reimbursementSearchInput = document.getElementById('reimbursementSearchInput');
+  var reimbursementSearchClear = document.getElementById('reimbursementSearchClear');
+  var reimbursementModal = document.getElementById('reimbursementModal');
+  var reimbursementDetailsHead = document.getElementById('reimbursementDetailsHead');
+  var reimbursementDetailsBody = document.getElementById('reimbursementDetailsBody');
+  var reimbursementForeignHint = document.getElementById('reimbursementForeignHint');
+  var reimbursementTypeError = document.getElementById('reimbursementTypeError');
+  var reimbursementRmError = document.getElementById('reimbursementRmError');
+  var reimbursementConfirmBtn = document.getElementById('reimbursementConfirmBtn');
+
+  function setReimbursementTypeSuggestions(codes){
+    document.getElementById('reimbursementTypeCodes').innerHTML = codes.map(function(code){
+      return '<option value="' + escapeHtml(code) + '">';
+    }).join('');
+  }
+  setReimbursementTypeSuggestions(REIMBURSEMENT_TYPE_CODES);
+
+  // Adds the Details ItemType column's own choices (including ones added there manually) to the
+  // built-in codes. Fetched on each Process click so newly added choices show up without a reload.
+  function refreshReimbursementTypeSuggestions(){
+    if (typeof window.spFetchItemTypeChoices !== 'function') return;
+    window.spFetchItemTypeChoices().then(function(choices){
+      var codes = REIMBURSEMENT_TYPE_CODES.slice();
+      choices.forEach(function(choice){ if (codes.indexOf(choice) === -1) codes.push(choice); });
+      setReimbursementTypeSuggestions(codes);
+    });
+  }
+
+  var reimbursementSearchQuery = '';
+  // Keyed by Details item id (not list position) so ticks survive searching and reloads.
+  var reimbursementSelected = {};
+  // Line items currently shown in the modal - what Confirm to process exports.
+  var reimbursementLines = [];
+  // Rows currently in the list: [{ reqIdx, item }], in request order then item order.
+  var reimbursementVisibleRows = [];
+
+  function formatMoney(n){
+    return (Math.round(n * 100) / 100).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  // Every exportable line item, ignoring the search box.
+  function exportableItemRows(){
+    var rows = [];
+    SUBMITTED_REQUESTS.forEach(function(reqItem, reqIdx){
+      ((reqItem.formData && reqItem.formData.lineItems) || []).forEach(function(item){
+        if (item.status === 'C' && item.exportFlag !== 'Y') rows.push({ reqIdx: reqIdx, item: item });
+      });
+    });
+    return rows;
+  }
+
+  function reimbursementRowMatchesSearch(row){
+    if (!reimbursementSearchQuery) return true;
+    var reqItem = SUBMITTED_REQUESTS[row.reqIdx];
+    var haystack = [
+      String(reqItem.ref),
+      TYPE_LABELS[reqItem.type] || reqItem.type,
+      String(row.item.matterNo || (reqItem.formData && reqItem.formData.matterNumber) || ''),
+      row.item.description,
+      reqItem.currency + ' ' + formatMoney(row.item.amount),
+      reqItem.payee,
+      reqItem.date
+    ].join(' ').toLowerCase();
+    return haystack.indexOf(reimbursementSearchQuery) !== -1;
+  }
+
+  function selectedReimbursementRows(){
+    return exportableItemRows().filter(function(row){ return reimbursementSelected[row.item.detailItemId]; });
+  }
+
+  function reimbursementRowHtml(row){
+    var reqItem = SUBMITTED_REQUESTS[row.reqIdx];
+    var item = row.item;
+    var matterNo = item.matterNo || (reqItem.formData && reqItem.formData.matterNumber) || '-';
+    return '<tr>' +
+      '<td data-label="Select"><input type="checkbox" class="reimb-check reimb-row-check" data-item="' + escapeHtml(item.detailItemId) + '"' + (reimbursementSelected[item.detailItemId] ? ' checked' : '') + ' aria-label="Select item ' + escapeHtml(item.description) + '"></td>' +
+      '<td data-label="ID"><span class="ref-chip">' + escapeHtml(reqItem.ref) + '</span></td>' +
+      '<td data-label="Type"><span class="type-pill ' + escapeHtml(reqItem.type) + '">' + escapeHtml(TYPE_LABELS[reqItem.type] || reqItem.type) + '</span></td>' +
+      '<td data-label="Matter No">' + escapeHtml(matterNo) + '</td>' +
+      '<td data-label="Item Description">' + escapeHtml(item.description || '-') + '</td>' +
+      '<td data-label="Payee">' + escapeHtml(reqItem.payee) + '</td>' +
+      '<td data-label="Date">' + escapeHtml(reqItem.date) + '</td>' +
+      '<td data-label="Amount">' + escapeHtml(reqItem.currency) + ' ' + formatMoney(item.amount) + '</td>' +
+      '<td><button type="button" class="btn btn-outline btn-sm btn-view-row reimb-view-btn" data-idx="' + row.reqIdx + '"><i class="fa-solid fa-eye"></i> View</button></td>' +
+      '</tr>';
+  }
+
+  function updateReimbursementSelectionUI(){
+    var selected = selectedReimbursementRows();
+    var totals = {};
+    selected.forEach(function(row){
+      var cur = SUBMITTED_REQUESTS[row.reqIdx].currency;
+      totals[cur] = (totals[cur] || 0) + row.item.amount;
+    });
+    reimbursementSelectedInfo.textContent = selected.length
+      ? selected.length + ' item' + (selected.length === 1 ? '' : 's') + ' selected - ' + Object.keys(totals).map(function(cur){ return cur + ' ' + formatMoney(totals[cur]); }).join(' + ')
+      : 'No items selected';
+    reimbursementProcessBtn.disabled = selected.length === 0;
+
+    var visibleChecked = reimbursementVisibleRows.filter(function(row){ return reimbursementSelected[row.item.detailItemId]; }).length;
+    reimbursementSelectAll.checked = reimbursementVisibleRows.length > 0 && visibleChecked === reimbursementVisibleRows.length;
+    reimbursementSelectAll.indeterminate = visibleChecked > 0 && visibleChecked < reimbursementVisibleRows.length;
+    reimbursementSelectAll.disabled = reimbursementVisibleRows.length === 0;
+  }
+
+  function renderReimbursementList(){
+    var allRows = exportableItemRows();
+    // Drop ticks for items that are no longer exportable (or no longer exist) after a reload.
+    var stillExportable = {};
+    allRows.forEach(function(row){ stillExportable[row.item.detailItemId] = true; });
+    Object.keys(reimbursementSelected).forEach(function(id){
+      if (!stillExportable[id]) delete reimbursementSelected[id];
+    });
+
+    reimbursementVisibleRows = allRows.filter(reimbursementRowMatchesSearch);
+    reimbursementBody.innerHTML = reimbursementVisibleRows.map(reimbursementRowHtml).join('');
+    reimbursementEmpty.hidden = reimbursementVisibleRows.length !== 0;
+    reimbursementCountBadge.textContent = reimbursementVisibleRows.length;
+    updateReimbursementSelectionUI();
+  }
+
+  reimbursementSearchInput.addEventListener('input', function(){
+    reimbursementSearchQuery = reimbursementSearchInput.value.trim().toLowerCase();
+    reimbursementSearchClear.hidden = !reimbursementSearchInput.value;
+    renderReimbursementList();
+  });
+  reimbursementSearchClear.addEventListener('click', function(){
+    reimbursementSearchInput.value = '';
+    reimbursementSearchQuery = '';
+    reimbursementSearchClear.hidden = true;
+    renderReimbursementList();
+  });
+
+  reimbursementBody.addEventListener('change', function(e){
+    var box = e.target.closest('.reimb-row-check');
+    if (!box) return;
+    var id = box.getAttribute('data-item');
+    if (box.checked) reimbursementSelected[id] = true;
+    else delete reimbursementSelected[id];
+    updateReimbursementSelectionUI();
+  });
+  reimbursementBody.addEventListener('click', function(e){
+    var btn = e.target.closest('.reimb-view-btn');
+    if (btn) openRequestDetails(parseInt(btn.getAttribute('data-idx'), 10));
+  });
+
+  // Ticks/unticks every row currently shown - with a search active, rows hidden by it keep
+  // whatever tick they already had.
+  reimbursementSelectAll.addEventListener('change', function(){
+    var checked = reimbursementSelectAll.checked;
+    reimbursementVisibleRows.forEach(function(row){
+      if (checked) reimbursementSelected[row.item.detailItemId] = true;
+      else delete reimbursementSelected[row.item.detailItemId];
+    });
+    renderReimbursementList();
+  });
+
+  reimbursementProcessBtn.addEventListener('click', function(){
+    var selected = selectedReimbursementRows();
+    if (!selected.length) return;
+    // exportableItemRows is already in request order, so each request's items stay together
+    // for the popup's merged ID/Matter No cells.
+    reimbursementLines = selected.map(function(row){
+      var reqItem = SUBMITTED_REQUESTS[row.reqIdx];
+      var isMyr = (reqItem.currency || 'MYR').toUpperCase() === 'MYR';
+      var amount = Math.round((row.item.amount || 0) * 100) / 100;
+      return {
+        ref: reqItem.ref,
+        detailItemId: row.item.detailItemId,
+        matterNo: row.item.matterNo || (reqItem.formData && reqItem.formData.matterNumber) || '',
+        typeCode: '',
+        description: row.item.description || '',
+        amount: amount,
+        currency: reqItem.currency,
+        isMyr: isMyr,
+        // What goes in the Excel Amount column. MYR items use their own amount; anything else
+        // is typed in by Accounts in the popup (null until they do).
+        amountRm: isMyr ? amount : null
+      };
+    });
+    renderReimbursementDetails();
+    reimbursementModal.hidden = false;
+    refreshReimbursementTypeSuggestions();
+  });
+
+  function reimbursementHasForeign(){
+    return reimbursementLines.some(function(line){ return !line.isMyr; });
+  }
+
+  function reimbursementTotalRm(){
+    return reimbursementLines.reduce(function(sum, line){ return sum + (line.amountRm || 0); }, 0);
+  }
+
+  // All-MYR batch: a single "Amount (RM)" column. With any non-MYR item, an "Original Amount"
+  // column (with its currency) is added before it so Accounts can type the RM figure.
+  function renderReimbursementDetails(){
+    var hasForeign = reimbursementHasForeign();
+    reimbursementDetailsHead.innerHTML = '<tr><th class="reimb-id-cell">ID</th><th>Matter No</th><th class="reimb-type-cell">Type</th><th>Item Description</th>' +
+      (hasForeign ? '<th class="reimb-amount">Original Amount</th>' : '') + '<th class="reimb-amount">Amount (MYR)</th></tr>';
+    var rowsHtml = reimbursementLines.map(function(line, i){
+      // Lines are grouped by request, so a request's ID/Matter No is one merged cell on its
+      // first line, spanning the rest.
+      var isFirstOfRequest = i === 0 || reimbursementLines[i - 1].ref !== line.ref;
+      var span = 0;
+      if (isFirstOfRequest){
+        while (i + span < reimbursementLines.length && reimbursementLines[i + span].ref === line.ref) span++;
+      }
+      var groupCells = !isFirstOfRequest ? ''
+        : '<td class="reimb-group-cell reimb-id-cell" rowspan="' + span + '"><span class="ref-chip">' + escapeHtml(line.ref) + '</span></td>' +
+          '<td class="reimb-group-cell" rowspan="' + span + '">' + escapeHtml(line.matterNo || '-') + '</td>';
+      var originalCell = hasForeign ? '<td class="reimb-amount">' + escapeHtml(line.currency) + ' ' + formatMoney(line.amount) + '</td>' : '';
+      var rmCell = line.isMyr
+        ? '<td class="reimb-amount">' + formatMoney(line.amountRm) + '</td>'
+        : '<td class="reimb-amount"><input type="number" class="reimb-rm-input" data-line="' + i + '" min="0" step="0.01" placeholder="0.00"' +
+          (line.amountRm != null ? ' value="' + line.amountRm.toFixed(2) + '"' : '') + ' aria-label="Amount in RM for item ' + (i + 1) + '"></td>';
+      return '<tr>' +
+        groupCells +
+        '<td class="reimb-type-cell"><input type="text" class="reimb-type-input" data-line="' + i + '" list="reimbursementTypeCodes" maxlength="20" value="' + escapeHtml(line.typeCode) + '" aria-label="Type for item ' + (i + 1) + '"></td>' +
+        '<td>' + escapeHtml(line.description || '-') + '</td>' +
+        originalCell +
+        rmCell +
+        '</tr>';
+    }).join('');
+    var totalHtml = '<tr class="reimb-total-row"><td colspan="' + (hasForeign ? 5 : 4) + '">Total</td>' +
+      '<td class="reimb-amount" id="reimbursementTotalCell"></td></tr>';
+    reimbursementDetailsBody.innerHTML = rowsHtml + totalHtml;
+    reimbursementForeignHint.hidden = !hasForeign;
+    reimbursementTypeError.hidden = true;
+    reimbursementRmError.hidden = true;
+    updateReimbursementTotal();
+  }
+
+  // Updated in place as RM amounts are typed, so the inputs aren't re-rendered (and don't lose
+  // focus) on every keystroke.
+  function updateReimbursementTotal(){
+    var cell = document.getElementById('reimbursementTotalCell');
+    if (cell) cell.textContent = formatMoney(reimbursementTotalRm());
+  }
+
+  reimbursementDetailsBody.addEventListener('input', function(e){
+    var typeInput = e.target.closest('.reimb-type-input');
+    if (typeInput){
+      reimbursementLines[parseInt(typeInput.getAttribute('data-line'), 10)].typeCode = typeInput.value.trim().toUpperCase();
+      typeInput.classList.remove('invalid');
+      return;
+    }
+    var rmInput = e.target.closest('.reimb-rm-input');
+    if (rmInput){
+      var n = parseFloat(rmInput.value);
+      reimbursementLines[parseInt(rmInput.getAttribute('data-line'), 10)].amountRm = (isNaN(n) || n <= 0) ? null : Math.round(n * 100) / 100;
+      rmInput.classList.remove('invalid');
+      updateReimbursementTotal();
+    }
+  });
+
+  function closeReimbursementModal(){ reimbursementModal.hidden = true; }
+  document.getElementById('closeReimbursementModalBtn').addEventListener('click', closeReimbursementModal);
+  document.getElementById('reimbursementCancelBtn').addEventListener('click', closeReimbursementModal);
+
+  // SheetJS is only needed here, so it's loaded on first use rather than on every page load.
+  var sheetJsPromise = null;
+  function loadSheetJs(){
+    if (window.XLSX) return Promise.resolve(window.XLSX);
+    if (sheetJsPromise) return sheetJsPromise;
+    sheetJsPromise = new Promise(function(resolve, reject){
+      var script = document.createElement('script');
+      script.src = SHEETJS_URL;
+      script.onload = function(){ resolve(window.XLSX); };
+      script.onerror = function(){
+        sheetJsPromise = null; // let the next click retry
+        reject(new Error('Could not load the Excel library.'));
+      };
+      document.head.appendChild(script);
+    });
+    return sheetJsPromise;
+  }
+
+  reimbursementConfirmBtn.addEventListener('click', function(){
+    var missingType = false;
+    Array.prototype.forEach.call(reimbursementDetailsBody.querySelectorAll('.reimb-type-input'), function(input){
+      var isMissing = !input.value.trim();
+      input.classList.toggle('invalid', isMissing);
+      if (isMissing) missingType = true;
+    });
+    reimbursementTypeError.hidden = !missingType;
+    var missingRm = false;
+    Array.prototype.forEach.call(reimbursementDetailsBody.querySelectorAll('.reimb-rm-input'), function(input){
+      var isMissing = reimbursementLines[parseInt(input.getAttribute('data-line'), 10)].amountRm == null;
+      input.classList.toggle('invalid', isMissing);
+      if (isMissing) missingRm = true;
+    });
+    reimbursementRmError.hidden = !missingRm;
+    if (missingType || missingRm) return;
+
+    var fileDownloaded = false;
+    var originalHtml = reimbursementConfirmBtn.innerHTML;
+    reimbursementConfirmBtn.disabled = true;
+    reimbursementConfirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
+    loadSheetJs().then(function(XLSX){
+      // No header row - columns are Matter No / Type / Amount / Item Description.
+      var rows = reimbursementLines.map(function(line){
+        return [line.matterNo || '', line.typeCode, line.amountRm, line.description];
+      });
+      var sheet = XLSX.utils.aoa_to_sheet(rows);
+      // Amount stays a real number (so it still sums in Excel) but always displays 2 decimals.
+      for (var r = 0; r < rows.length; r++){
+        var cell = sheet[XLSX.utils.encode_cell({ r: r, c: 2 })];
+        if (cell) cell.z = '0.00';
+      }
+      sheet['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 60 }];
+      var book = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(book, sheet, 'Reimbursement');
+      var now = new Date();
+      function pad(n){ return (n < 10 ? '0' : '') + n; }
+      var stamp = now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + '_' + pad(now.getHours()) + pad(now.getMinutes());
+      XLSX.writeFile(book, 'Reimbursement_' + stamp + '.xlsx');
+      fileDownloaded = true;
+
+      // Only once the file has actually been generated - a failure above skips this, so
+      // nothing is marked Exported without a file to show for it.
+      reimbursementConfirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Updating SharePoint...';
+      var itemTypeLines = reimbursementLines.map(function(line){
+        return { detailItemId: line.detailItemId, itemType: line.typeCode, ref: line.ref, description: line.description };
+      });
+      return window.spMarkDetailsExported(itemTypeLines).then(function(failedDetailIds){
+        closeReimbursementModal();
+        itemTypeLines.forEach(function(line){
+          if (failedDetailIds.indexOf(line.detailItemId) === -1) delete reimbursementSelected[line.detailItemId];
+        });
+        if (failedDetailIds.length){
+          alert('The Excel file was downloaded, but these items could not be marked as exported in E-Voucher Details: ' +
+            itemTypeLines.filter(function(line){
+              return failedDetailIds.indexOf(line.detailItemId) !== -1;
+            }).map(function(line){ return 'request ' + line.ref + ' "' + line.description + '" (' + line.itemType + ')'; }).join('; ') +
+            '. They will still show in the list - set their ItemType and Export (Y) manually so they are not processed again.');
+        }
+        return loadRequestsFromSharePoint();
+      });
+    }).catch(function(err){
+      var message = (err && err.message) || 'Unknown error';
+      alert(fileDownloaded
+        ? 'The Excel file was downloaded, but SharePoint could not be updated (' + message + '). These items are not marked as exported - set Export (Y) on them in E-Voucher Details so they are not processed again: ' +
+          reimbursementLines.map(function(line){ return 'request ' + line.ref + ' "' + line.description + '"'; }).join('; ')
+        : 'Could not generate the Excel file: ' + message);
+    }).then(function(){
+      reimbursementConfirmBtn.disabled = false;
+      reimbursementConfirmBtn.innerHTML = originalHtml;
+    });
+  });
+
   function applyFormData(data){
     if (!data) return;
     nominalType.value = data.nominalType || '';
@@ -2873,14 +3355,16 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var views = {
     submit: document.getElementById('view-submit'),
     requests: document.getElementById('view-requests'),
-    accounts: document.getElementById('view-accounts')
+    accounts: document.getElementById('view-accounts'),
+    reimbursement: document.getElementById('view-reimbursement')
   };
   var topbarTitle = document.getElementById('topbarTitle');
   var topbarSubtitle = document.getElementById('topbarSubtitle');
   var VIEW_META = {
     submit: { title: 'Submit Payment Request', subtitle: 'Payment nominal request and approval routing' },
     requests: { title: 'View Requests', subtitle: 'Browse previously submitted e-voucher requests' },
-    accounts: { title: 'Accounts Approval', subtitle: 'Final review for requests that have cleared all required approvals' }
+    accounts: { title: 'Accounts Approval', subtitle: 'Final review for requests that have cleared all required approvals' },
+    reimbursement: { title: 'Reimbursement', subtitle: 'Select completed requests and export them for reimbursement' }
   };
 
   navItems.forEach(function(btn){
@@ -2891,7 +3375,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       var meta = VIEW_META[key];
       topbarTitle.textContent = meta.title;
       topbarSubtitle.textContent = meta.subtitle;
-      if (key === 'requests' || key === 'accounts') loadRequestsFromSharePoint();
+      if (key === 'requests' || key === 'accounts' || key === 'reimbursement') loadRequestsFromSharePoint();
     });
   });
 
@@ -3905,7 +4389,11 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
           detailItemId: row.id,
           description: df.PaymentDescription || '',
           invoice: df.InvoiceNo || '',
-          amount: parseFloat(df.Amount) || 0
+          amount: parseFloat(df.Amount) || 0,
+          // Reimbursement lists an item while Status is "C" and Export isn't "Y" yet.
+          status: (df.Status || '').trim().toUpperCase(),
+          exportFlag: (df.Export || '').trim().toUpperCase(),
+          matterNo: df.MatterNo != null ? String(df.MatterNo) : ''
         });
       });
 
@@ -4177,6 +4665,59 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     });
   };
 
+  // ---------- Reimbursement export ----------
+  // Marks each exported line in E-Voucher Details: its Type goes to the ItemType Choice column
+  // (fill-in values allowed, so codes typed in the popup that aren't listed yet are still
+  // accepted), the Export Choice column is set to "Y" (dropping it off the Reimbursement list),
+  // and when/by whom go to ExportDate and ExportPerson (a Person column - written as
+  // ExportPersonLookupId, same pattern as AccountsLookupId). lines is
+  // [{ detailItemId, itemType }]. Each item is PATCHed separately; resolves with the
+  // detailItemIds that failed (empty when all succeeded) rather than rejecting, so one bad item
+  // doesn't hide which others were saved.
+  window.spMarkDetailsExported = function(lines){
+    var exportDate = new Date().toISOString();
+    var exportSpUserId = null;
+    return ensureSpUser(window.__currentUserEmail).catch(function(err){
+      console.warn('Could not resolve the signed-in user as a SharePoint user - ExportPerson will be left blank.', err);
+      return null;
+    }).then(function(spUserId){
+      exportSpUserId = spUserId;
+      return getSpListId(SP_DETAILS_LIST_NAME);
+    }).then(function(detailsListId){
+      return getSpSiteId().then(function(siteId){
+        return Promise.all(lines.map(function(line){
+          var fields = { ItemType: line.itemType, Export: 'Y', ExportDate: exportDate };
+          if (exportSpUserId) fields.ExportPersonLookupId = exportSpUserId;
+          return graphRequest('/sites/' + siteId + '/lists/' + detailsListId + '/items/' + line.detailItemId + '/fields', {
+            method: 'PATCH',
+            body: JSON.stringify(fields)
+          }).then(function(){ return null; }, function(err){
+            console.warn('Could not mark E-Voucher Details item ' + line.detailItemId + ' as exported.', err);
+            return line.detailItemId;
+          });
+        }));
+      });
+    }).then(function(results){
+      return results.filter(function(id){ return id !== null; });
+    });
+  };
+
+  // The ItemType Choice column's current options - fed into the Reimbursement popup's Type
+  // suggestions. Resolves with [] on failure so the popup still works with its built-in codes.
+  window.spFetchItemTypeChoices = function(){
+    return getSpListId(SP_DETAILS_LIST_NAME).then(function(detailsListId){
+      return getSpSiteId().then(function(siteId){
+        return graphRequest('/sites/' + siteId + '/lists/' + detailsListId + '/columns');
+      });
+    }).then(function(result){
+      var column = ((result && result.value) || []).filter(function(col){ return col.name === 'ItemType'; })[0];
+      return (column && column.choice && column.choice.choices) || [];
+    }).catch(function(err){
+      console.warn('Could not load the ItemType choices - using the built-in Type codes only.', err);
+      return [];
+    });
+  };
+
   // Checks the signed-in account's email against ACC_EMAILS first, then against the members of
   // every group in GROUP_ACC (membership in any one is enough). Gates visibility of the Accounts
   // Approval nav item/view only - it is NOT itself a security boundary, since SharePoint
@@ -4203,8 +4744,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
   window.eVoucherSignInHandlers.push(function(account){
     window.checkCurrentUserIsApprover(account).then(function(isApprover){
-      var navItem = document.getElementById('accountsNavItem');
-      if (navItem) navItem.hidden = !isApprover;
+      ['accountsNavItem', 'reimbursementNavItem'].forEach(function(id){
+        var navItem = document.getElementById(id);
+        if (navItem) navItem.hidden = !isApprover;
+      });
     });
   });
 

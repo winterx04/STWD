@@ -13,7 +13,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.11.17.3';
+  window.__EVOUCHER_VERSION__ = '2026.11.17.16';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -659,8 +659,18 @@
 
   /* Reimbursement view - checkbox list of Completed requests + Process/Confirm modal. */
   .reimb-check{min-width:0;width:18px;height:18px;accent-color:var(--primary);cursor:pointer;vertical-align:middle;}
-  .reimb-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:16px;}
-  .reimb-selected-info{font-size:13px;font-weight:600;color:var(--text-muted);}
+  /* Total row across the full width (item count left, total right) with the accounting-style
+     single rule above / double rule below, then Process on its own line underneath. */
+  .reimb-toolbar{display:flex;flex-direction:column;align-items:stretch;gap:16px;margin-top:16px;}
+  .reimb-toolbar #reimbursementProcessBtn{align-self:flex-end;}
+  .reimb-selected-info{
+    display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+    padding:10px 4px;border-top:1px solid var(--navy);border-bottom:3px double var(--navy);
+    font-size:13px;font-weight:600;color:var(--text-muted);
+  }
+  .reimb-selected-total{display:inline-flex;align-items:center;gap:10px;font-size:18px;font-weight:800;color:var(--navy);}
+  .reimb-selected-total .label{font-size:14px;font-weight:700;}
+  .reimb-selected-total .amount{font-variant-numeric:tabular-nums;}
   .reimb-amount{text-align:right;white-space:nowrap;}
   /* ID-scoped so these beat the global input[type=text/number]{width:100%} rule. */
   #reimbursementDetailsTable .reimb-type-input{min-width:0;width:calc(9ch + 18px);padding:6px 8px;font-size:13px;text-transform:uppercase;}
@@ -668,10 +678,33 @@
   #reimbursementDetailsTable .reimb-type-cell{width:1%;white-space:nowrap;}
   /* Fits an 8-digit ID chip (chip's own 10px side padding) plus 12px cell padding each side. */
   #reimbursementDetailsTable .reimb-id-cell{width:calc(8ch + 44px);padding-left:12px;padding-right:12px;white-space:nowrap;}
-  .reimb-total-row td{font-weight:700;color:var(--navy);background:var(--bg);}
   #reimbursementDetailsTable tbody td{vertical-align:middle;}
   #reimbursementDetailsTable tbody tr{background:var(--white);}
   #reimbursementDetailsTable td.reimb-group-cell{border-right:1px solid var(--border);}
+  #reimbursementDetailsTable .reimb-amount{font-variant-numeric:tabular-nums;}
+  #reimbursementDetailsTable .reimb-original{color:var(--text-muted);}
+  /* Payee group header: orange accent bar, small "Payee"/"Subtotal" captions over the values. */
+  #reimbursementDetailsTable tr.reimb-payee-row td{background:var(--bg);color:var(--navy);font-weight:700;padding:10px 14px;border-top:2px solid var(--border);}
+  #reimbursementDetailsTable tr.reimb-payee-row td:first-child{box-shadow:inset 4px 0 0 var(--primary);}
+  #reimbursementDetailsTable .reimb-caption{display:block;font-size:10.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-muted);margin-bottom:2px;}
+  #reimbursementDetailsTable .reimb-payee-name{font-size:14.5px;}
+  /* Accounting-style grand total, matching the list page's total row. */
+  #reimbursementDetailsTable tr.reimb-total-row td{background:var(--white);color:var(--navy);font-weight:800;font-size:16px;padding:12px 14px;border-top:1px solid var(--navy);border-bottom:3px double var(--navy);}
+  .reimb-summary{display:flex;gap:8px;flex-wrap:wrap;margin:-4px 0 14px;}
+  .reimb-summary span{background:var(--bg);color:var(--navy);font-size:12.5px;font-weight:700;padding:5px 12px;border-radius:20px;}
+  .reimb-info{display:flex;gap:10px;align-items:flex-start;background:#eaf3fb;color:var(--navy-light);border:1px solid #cfe2f3;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:14px;}
+  .reimb-info[hidden]{display:none;}
+  /* Type picker dropdown (see renderTypeMenu) - ~6 codes tall, then scrolls. */
+  .reimb-type-menu{
+    position:fixed;z-index:60;margin:0;padding:4px;list-style:none;background:var(--white);
+    border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(1,52,95,0.18);
+    max-height:204px;overflow-y:auto;
+  }
+  .reimb-type-menu[hidden]{display:none;}
+  .reimb-type-menu li{padding:6px 10px;border-radius:6px;font-size:13px;font-weight:600;color:var(--navy);cursor:pointer;white-space:nowrap;}
+  .reimb-type-menu li[data-code]:hover,.reimb-type-menu li.active{background:var(--primary-light);color:var(--primary-dark);}
+  .reimb-type-menu li strong{color:var(--primary-dark);}
+  .reimb-type-menu li.reimb-type-empty{color:var(--text-muted);font-weight:500;cursor:default;}
   #view-reimbursement .type-pill{min-width:112px;text-align:center;}
   /* Desktop list: short columns hug their content on one line; Item Description (5th) and
      Payee (6th) share the remaining width. The mobile card layout below 761px is untouched. */
@@ -1428,14 +1461,14 @@
   <div class="modal-card modal-card-details">
     <button type="button" class="modal-close-x" id="closeReimbursementModalBtn" title="Close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
     <h2>Reimbursement Details</h2>
-    <p class="hint" id="reimbursementForeignHint" style="margin:-6px 0 14px;" hidden>Some items are not in MYR - enter their amount in MYR. The Excel file uses the MYR amount.</p>
+    <div class="reimb-summary" id="reimbursementSummary"></div>
+    <div class="reimb-info" id="reimbursementForeignHint" hidden><i class="fa-solid fa-circle-info" style="margin-top:2px;"></i><span>Some items are not in MYR - enter their amount in MYR. The Excel file uses the MYR amount.</span></div>
     <div class="table-wrap">
       <table id="reimbursementDetailsTable">
         <thead id="reimbursementDetailsHead"></thead>
         <tbody id="reimbursementDetailsBody"></tbody>
       </table>
     </div>
-    <datalist id="reimbursementTypeCodes"></datalist>
     <p class="hint warning" id="reimbursementTypeError" hidden>Please fill in a Type for every item.</p>
     <p class="hint warning" id="reimbursementRmError" hidden>Please enter a MYR amount greater than 0 for every non-MYR item.</p>
     <div class="rd-actions" style="margin-top:16px;">
@@ -2378,7 +2411,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   document.getElementById('closeModalXBtn').addEventListener('click', function(){ successModal.hidden = true; });
 
   // Clicking the dimmed backdrop (not the card itself) closes whichever modal it belongs to.
-  Array.prototype.forEach.call(document.querySelectorAll('.modal'), function(modal){
+  // Except Reimbursement Details: it holds typed Types/MYR amounts, so it only closes via its
+  // X or Cancel button - a stray click outside must not throw that work away.
+  Array.prototype.forEach.call(document.querySelectorAll('.modal:not(#reimbursementModal)'), function(modal){
     modal.addEventListener('click', function(e){
       if (e.target === modal) modal.hidden = true;
     });
@@ -2873,12 +2908,12 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var reimbursementRmError = document.getElementById('reimbursementRmError');
   var reimbursementConfirmBtn = document.getElementById('reimbursementConfirmBtn');
 
+  // Codes offered by the Type picker (reimbTypeMenu below) - the built-ins plus ItemType's choices.
+  var reimbursementTypeCodeList = REIMBURSEMENT_TYPE_CODES.slice();
   function setReimbursementTypeSuggestions(codes){
-    document.getElementById('reimbursementTypeCodes').innerHTML = codes.map(function(code){
-      return '<option value="' + escapeHtml(code) + '">';
-    }).join('');
+    reimbursementTypeCodeList = codes;
+    if (typeMenuInput) renderTypeMenu();
   }
-  setReimbursementTypeSuggestions(REIMBURSEMENT_TYPE_CODES);
 
   // Adds the Details ItemType column's own choices (including ones added there manually) to the
   // built-in codes. Fetched on each Process click so newly added choices show up without a reload.
@@ -2903,10 +2938,14 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     return (Math.round(n * 100) / 100).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
-  // Every exportable line item, ignoring the search box.
+  // Every exportable line item, ignoring the search box. Only Matter Related and Staff Claim
+  // (Matter) requests are reimbursed - Office Related and Staff Claim (Office) never show.
   function exportableItemRows(){
     var rows = [];
     SUBMITTED_REQUESTS.forEach(function(reqItem, reqIdx){
+      var isMatter = reqItem.type === 'matter' ||
+        (reqItem.type === 'staff' && reqItem.formData && reqItem.formData.staffSubtype === 'matter');
+      if (!isMatter) return;
       ((reqItem.formData && reqItem.formData.lineItems) || []).forEach(function(item){
         if (item.status === 'C' && item.exportFlag !== 'Y') rows.push({ reqIdx: reqIdx, item: item });
       });
@@ -2957,8 +2996,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       var cur = SUBMITTED_REQUESTS[row.reqIdx].currency;
       totals[cur] = (totals[cur] || 0) + row.item.amount;
     });
-    reimbursementSelectedInfo.textContent = selected.length
-      ? selected.length + ' item' + (selected.length === 1 ? '' : 's') + ' selected - ' + Object.keys(totals).map(function(cur){ return cur + ' ' + formatMoney(totals[cur]); }).join(' + ')
+    reimbursementSelectedInfo.innerHTML = selected.length
+      ? '<span>' + selected.length + ' item' + (selected.length === 1 ? '' : 's') + ' selected</span>' +
+        '<span class="reimb-selected-total"><span class="label">Total:</span><span class="amount">' +
+        escapeHtml(Object.keys(totals).map(function(cur){ return cur + ' ' + formatMoney(totals[cur]); }).join(' + ')) + '</span></span>'
       : 'No items selected';
     reimbursementProcessBtn.disabled = selected.length === 0;
 
@@ -3024,8 +3065,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var selected = selectedReimbursementRows();
     if (!selected.length) return;
     // exportableItemRows is already in request order, so each request's items stay together
-    // for the popup's merged ID/Matter No cells.
-    reimbursementLines = selected.map(function(row){
+    // for the popup's merged ID/Matter No cells; groupLinesByPayee then keeps that order
+    // within each payee.
+    reimbursementLines = groupLinesByPayee(selected.map(function(row){
       var reqItem = SUBMITTED_REQUESTS[row.reqIdx];
       var isMyr = (reqItem.currency || 'MYR').toUpperCase() === 'MYR';
       var amount = Math.round((row.item.amount || 0) * 100) / 100;
@@ -3033,6 +3075,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         ref: reqItem.ref,
         detailItemId: row.item.detailItemId,
         matterNo: row.item.matterNo || (reqItem.formData && reqItem.formData.matterNumber) || '',
+        payee: reqItem.payee || '',
         typeCode: '',
         description: row.item.description || '',
         amount: amount,
@@ -3042,11 +3085,29 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         // is typed in by Accounts in the popup (null until they do).
         amountRm: isMyr ? amount : null
       };
-    });
+    }));
     renderReimbursementDetails();
     reimbursementModal.hidden = false;
     refreshReimbursementTypeSuggestions();
   });
+
+  // Payees match ignoring case and surrounding spaces - shared by the popup's grouping and the
+  // one-Excel-file-per-payee split, so both always agree.
+  function payeeKey(payee){
+    return (payee || '').trim().toLowerCase();
+  }
+
+  // Reorders lines so each payee's lines are together, payees in first-seen order.
+  function groupLinesByPayee(lines){
+    var order = [];
+    var byKey = {};
+    lines.forEach(function(line){
+      var key = payeeKey(line.payee);
+      if (!byKey[key]){ byKey[key] = []; order.push(key); }
+      byKey[key].push(line);
+    });
+    return order.reduce(function(all, key){ return all.concat(byKey[key]); }, []);
+  }
 
   function reimbursementHasForeign(){
     return reimbursementLines.some(function(line){ return !line.isMyr; });
@@ -3062,7 +3123,19 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var hasForeign = reimbursementHasForeign();
     reimbursementDetailsHead.innerHTML = '<tr><th class="reimb-id-cell">ID</th><th>Matter No</th><th class="reimb-type-cell">Type</th><th>Item Description</th>' +
       (hasForeign ? '<th class="reimb-amount">Original Amount</th>' : '') + '<th class="reimb-amount">Amount (MYR)</th></tr>';
+    var columnCount = hasForeign ? 6 : 5;
+    var payeeGroupIndex = -1;
     var rowsHtml = reimbursementLines.map(function(line, i){
+      // Each payee starts with its own header row (name + MYR subtotal); the subtotal cell is
+      // filled in by updateReimbursementTotal.
+      var payeeRow = '';
+      if (i === 0 || payeeKey(reimbursementLines[i - 1].payee) !== payeeKey(line.payee)){
+        payeeGroupIndex++;
+        payeeRow = '<tr class="reimb-payee-row"><td colspan="' + (columnCount - 1) + '"><span class="reimb-caption">Payee</span>' +
+          '<span class="reimb-payee-name">' + escapeHtml((line.payee || '').trim() || 'No Payee') + '</span></td>' +
+          '<td class="reimb-amount"><span class="reimb-caption">Subtotal</span><span class="reimb-payee-subtotal" data-payee-group="' + payeeGroupIndex + '"></span></td></tr>';
+      }
+      line.payeeGroup = payeeGroupIndex;
       // Lines are grouped by request, so a request's ID/Matter No is one merged cell on its
       // first line, spanning the rest.
       var isFirstOfRequest = i === 0 || reimbursementLines[i - 1].ref !== line.ref;
@@ -3073,22 +3146,31 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       var groupCells = !isFirstOfRequest ? ''
         : '<td class="reimb-group-cell reimb-id-cell" rowspan="' + span + '"><span class="ref-chip">' + escapeHtml(line.ref) + '</span></td>' +
           '<td class="reimb-group-cell" rowspan="' + span + '">' + escapeHtml(line.matterNo || '-') + '</td>';
-      var originalCell = hasForeign ? '<td class="reimb-amount">' + escapeHtml(line.currency) + ' ' + formatMoney(line.amount) + '</td>' : '';
+      var originalCell = hasForeign ? '<td class="reimb-amount reimb-original">' + escapeHtml(line.currency) + ' ' + formatMoney(line.amount) + '</td>' : '';
       var rmCell = line.isMyr
         ? '<td class="reimb-amount">' + formatMoney(line.amountRm) + '</td>'
         : '<td class="reimb-amount"><input type="number" class="reimb-rm-input" data-line="' + i + '" min="0" step="0.01" placeholder="0.00"' +
           (line.amountRm != null ? ' value="' + line.amountRm.toFixed(2) + '"' : '') + ' aria-label="Amount in RM for item ' + (i + 1) + '"></td>';
-      return '<tr>' +
+      return payeeRow + '<tr>' +
         groupCells +
-        '<td class="reimb-type-cell"><input type="text" class="reimb-type-input" data-line="' + i + '" list="reimbursementTypeCodes" maxlength="20" value="' + escapeHtml(line.typeCode) + '" aria-label="Type for item ' + (i + 1) + '"></td>' +
+        '<td class="reimb-type-cell"><input type="text" class="reimb-type-input" data-line="' + i + '" autocomplete="off" maxlength="20" value="' + escapeHtml(line.typeCode) + '" aria-label="Type for item ' + (i + 1) + '"></td>' +
         '<td>' + escapeHtml(line.description || '-') + '</td>' +
         originalCell +
         rmCell +
         '</tr>';
     }).join('');
-    var totalHtml = '<tr class="reimb-total-row"><td colspan="' + (hasForeign ? 5 : 4) + '">Total</td>' +
+    var totalHtml = '<tr class="reimb-total-row"><td colspan="' + (columnCount - 1) + '">Total (MYR)</td>' +
       '<td class="reimb-amount" id="reimbursementTotalCell"></td></tr>';
     reimbursementDetailsBody.innerHTML = rowsHtml + totalHtml;
+
+    // One Excel file per payee, so the payee count is also the file count.
+    var payeeCount = payeeGroupIndex + 1;
+    var itemCount = reimbursementLines.length;
+    function plural(n, word){ return n + ' ' + word + (n === 1 ? '' : 's'); }
+    document.getElementById('reimbursementSummary').innerHTML =
+      '<span>' + plural(payeeCount, 'payee') + '</span><span>' + plural(itemCount, 'item') + '</span>' +
+      '<span><i class="fa-solid fa-file-excel"></i> ' + plural(payeeCount, 'Excel file') + '</span>';
+    reimbursementConfirmBtn.innerHTML = '<i class="fa-solid fa-file-excel"></i> Confirm to process (' + plural(payeeCount, 'file') + ')';
     reimbursementForeignHint.hidden = !hasForeign;
     reimbursementTypeError.hidden = true;
     reimbursementRmError.hidden = true;
@@ -3100,6 +3182,13 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   function updateReimbursementTotal(){
     var cell = document.getElementById('reimbursementTotalCell');
     if (cell) cell.textContent = formatMoney(reimbursementTotalRm());
+    var subtotals = {};
+    reimbursementLines.forEach(function(line){
+      subtotals[line.payeeGroup] = (subtotals[line.payeeGroup] || 0) + (line.amountRm || 0);
+    });
+    Array.prototype.forEach.call(reimbursementDetailsBody.querySelectorAll('.reimb-payee-subtotal'), function(subtotalCell){
+      subtotalCell.textContent = formatMoney(subtotals[subtotalCell.getAttribute('data-payee-group')] || 0);
+    });
   }
 
   reimbursementDetailsBody.addEventListener('input', function(e){
@@ -3107,6 +3196,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     if (typeInput){
       reimbursementLines[parseInt(typeInput.getAttribute('data-line'), 10)].typeCode = typeInput.value.trim().toUpperCase();
       typeInput.classList.remove('invalid');
+      if (typeMenuInput === typeInput){
+        typeMenuActive = typeInput.value.trim() ? 0 : -1;
+        renderTypeMenu();
+      }
       return;
     }
     var rmInput = e.target.closest('.reimb-rm-input');
@@ -3118,7 +3211,137 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     }
   });
 
-  function closeReimbursementModal(){ reimbursementModal.hidden = true; }
+  // ---------- Type picker ----------
+  // Replaces the browser's own datalist dropdown (oversized, unstyleable): a compact list under
+  // the focused Type box, ~6 codes tall, filtered as you type (codes starting with the text
+  // first, then ones containing it), arrow keys + Enter to pick, Esc to close. Free text is
+  // still allowed - the box is a plain input. position:fixed so the table's scroll container
+  // can't clip it. Lives on <body>, not inside the modal overlay, so its clicks never count as
+  // clicks on the popup's backdrop.
+  var reimbTypeMenu = document.createElement('ul');
+  reimbTypeMenu.className = 'reimb-type-menu';
+  reimbTypeMenu.hidden = true;
+  document.body.appendChild(reimbTypeMenu);
+  var typeMenuInput = null;
+  var typeMenuMatches = [];
+  var typeMenuActive = -1;
+
+  function filterTypeCodes(query){
+    var q = query.trim().toUpperCase();
+    if (!q) return reimbursementTypeCodeList.slice();
+    var starts = [], contains = [];
+    reimbursementTypeCodeList.forEach(function(code){
+      var pos = code.toUpperCase().indexOf(q);
+      if (pos === 0) starts.push(code);
+      else if (pos > 0) contains.push(code);
+    });
+    return starts.concat(contains);
+  }
+
+  function positionTypeMenu(){
+    var rect = typeMenuInput.getBoundingClientRect();
+    reimbTypeMenu.style.left = rect.left + 'px';
+    reimbTypeMenu.style.minWidth = Math.max(rect.width, 140) + 'px';
+    var spaceBelow = window.innerHeight - rect.bottom;
+    // Flip above the box when there isn't room for the list below it.
+    if (spaceBelow < 220 && rect.top > spaceBelow){
+      reimbTypeMenu.style.top = '';
+      reimbTypeMenu.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+    } else {
+      reimbTypeMenu.style.bottom = '';
+      reimbTypeMenu.style.top = (rect.bottom + 4) + 'px';
+    }
+  }
+
+  function renderTypeMenu(){
+    var query = typeMenuInput.value.trim().toUpperCase();
+    typeMenuMatches = filterTypeCodes(query);
+    if (typeMenuActive >= typeMenuMatches.length) typeMenuActive = typeMenuMatches.length - 1;
+    reimbTypeMenu.innerHTML = typeMenuMatches.length
+      ? typeMenuMatches.map(function(code, i){
+          var pos = query ? code.toUpperCase().indexOf(query) : -1;
+          var label = pos === -1 ? escapeHtml(code)
+            : escapeHtml(code.slice(0, pos)) + '<strong>' + escapeHtml(code.slice(pos, pos + query.length)) + '</strong>' + escapeHtml(code.slice(pos + query.length));
+          return '<li data-code="' + escapeHtml(code) + '"' + (i === typeMenuActive ? ' class="active"' : '') + '>' + label + '</li>';
+        }).join('')
+      : '<li class="reimb-type-empty">No matching code</li>';
+    positionTypeMenu();
+    reimbTypeMenu.hidden = false;
+    var active = reimbTypeMenu.querySelector('li.active');
+    if (active) active.scrollIntoView({ block: 'nearest' });
+  }
+
+  function openTypeMenu(input){
+    typeMenuInput = input;
+    typeMenuActive = input.value.trim() ? 0 : -1;
+    renderTypeMenu();
+  }
+
+  function closeTypeMenu(){
+    reimbTypeMenu.hidden = true;
+    typeMenuInput = null;
+  }
+
+  function chooseTypeCode(code){
+    var input = typeMenuInput;
+    input.value = code;
+    reimbursementLines[parseInt(input.getAttribute('data-line'), 10)].typeCode = code.toUpperCase();
+    input.classList.remove('invalid');
+    closeTypeMenu();
+    // Jump to the next item still missing a Type, so a batch can be filled in one pass.
+    var inputs = Array.prototype.slice.call(reimbursementDetailsBody.querySelectorAll('.reimb-type-input'));
+    var next = inputs.slice(inputs.indexOf(input) + 1).filter(function(el){ return !el.value.trim(); })[0];
+    if (next) next.focus();
+  }
+
+  reimbursementDetailsBody.addEventListener('focusin', function(e){
+    var input = e.target.closest('.reimb-type-input');
+    if (input) openTypeMenu(input);
+  });
+  reimbursementDetailsBody.addEventListener('focusout', function(e){
+    if (e.target === typeMenuInput) closeTypeMenu();
+  });
+  // Reopens the list after Esc closed it while the box kept focus.
+  reimbursementDetailsBody.addEventListener('click', function(e){
+    var input = e.target.closest('.reimb-type-input');
+    if (input && typeMenuInput !== input) openTypeMenu(input);
+  });
+  reimbursementDetailsBody.addEventListener('keydown', function(e){
+    if (!typeMenuInput || e.target !== typeMenuInput) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+      e.preventDefault();
+      if (!typeMenuMatches.length) return;
+      typeMenuActive = e.key === 'ArrowDown'
+        ? Math.min(typeMenuActive + 1, typeMenuMatches.length - 1)
+        : Math.max(typeMenuActive - 1, 0);
+      renderTypeMenu();
+    } else if (e.key === 'Enter'){
+      e.preventDefault();
+      if (typeMenuActive >= 0 && typeMenuMatches[typeMenuActive]) chooseTypeCode(typeMenuMatches[typeMenuActive]);
+      else closeTypeMenu();
+    } else if (e.key === 'Escape'){
+      e.preventDefault();
+      closeTypeMenu();
+    }
+  });
+  // preventDefault on mousedown keeps focus in the Type box (so it doesn't blur and close the
+  // list mid-click); the pick itself happens on click, i.e. on mouse-up, so the list is still
+  // there under the pointer. Picking on mousedown hid the list early, and the mouse-up then
+  // landed on whatever was beneath it - the popup's backdrop for the last rows, which closed
+  // the whole popup.
+  reimbTypeMenu.addEventListener('mousedown', function(e){ e.preventDefault(); });
+  reimbTypeMenu.addEventListener('click', function(e){
+    var li = e.target.closest('li[data-code]');
+    if (li && typeMenuInput) chooseTypeCode(li.getAttribute('data-code'));
+  });
+  // Keep the list attached to its box while the popup scrolls.
+  document.addEventListener('scroll', function(){ if (typeMenuInput) positionTypeMenu(); }, true);
+  window.addEventListener('resize', function(){ if (typeMenuInput) positionTypeMenu(); });
+
+  function closeReimbursementModal(){
+    closeTypeMenu();
+    reimbursementModal.hidden = true;
+  }
   document.getElementById('closeReimbursementModalBtn').addEventListener('click', closeReimbursementModal);
   document.getElementById('reimbursementCancelBtn').addEventListener('click', closeReimbursementModal);
 
@@ -3162,26 +3385,51 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     reimbursementConfirmBtn.disabled = true;
     reimbursementConfirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
     loadSheetJs().then(function(XLSX){
-      // No header row - columns are Matter No / Type / Amount / Item Description.
-      var rows = reimbursementLines.map(function(line){
-        return [line.matterNo || '', line.typeCode, line.amountRm, line.description];
+      // One Excel file per payee - grouped ignoring case and surrounding spaces, named after
+      // the first spelling seen.
+      var payeeGroups = [];
+      var groupByKey = {};
+      reimbursementLines.forEach(function(line){
+        var name = (line.payee || '').trim();
+        var key = payeeKey(line.payee);
+        if (!groupByKey[key]){
+          groupByKey[key] = { name: name || 'No Payee', lines: [] };
+          payeeGroups.push(groupByKey[key]);
+        }
+        groupByKey[key].lines.push(line);
       });
-      var sheet = XLSX.utils.aoa_to_sheet(rows);
-      // Amount stays a real number (so it still sums in Excel) but always displays 2 decimals.
-      for (var r = 0; r < rows.length; r++){
-        var cell = sheet[XLSX.utils.encode_cell({ r: r, c: 2 })];
-        if (cell) cell.z = '0.00';
+
+      function buildBook(lines){
+        // No header row - columns are Matter No / Type / Amount / Item Description.
+        var rows = lines.map(function(line){
+          return [line.matterNo || '', line.typeCode, line.amountRm, line.description];
+        });
+        var sheet = XLSX.utils.aoa_to_sheet(rows);
+        // Amount stays a real number (so it still sums in Excel) but always displays 2 decimals.
+        for (var r = 0; r < rows.length; r++){
+          var cell = sheet[XLSX.utils.encode_cell({ r: r, c: 2 })];
+          if (cell) cell.z = '0.00';
+        }
+        sheet['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 60 }];
+        var book = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(book, sheet, 'Reimbursement');
+        return book;
       }
-      sheet['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 60 }];
-      var book = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(book, sheet, 'Reimbursement');
+
       var now = new Date();
       function pad(n){ return (n < 10 ? '0' : '') + n; }
       var stamp = now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + '_' + pad(now.getHours()) + pad(now.getMinutes());
-      XLSX.writeFile(book, 'Reimbursement_' + stamp + '.xlsx');
-      fileDownloaded = true;
-
-      // Only once the file has actually been generated - a failure above skips this, so
+      // Browsers can drop downloads fired back-to-back, so space them out slightly.
+      return payeeGroups.reduce(function(chain, group, i){
+        return chain.then(function(){
+          var safeName = group.name.replace(/[\\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').slice(0, 60);
+          XLSX.writeFile(buildBook(group.lines), 'Reimbursement_' + safeName + '_' + stamp + '.xlsx');
+          fileDownloaded = true;
+          if (i < payeeGroups.length - 1) return new Promise(function(resolve){ setTimeout(resolve, 400); });
+        });
+      }, Promise.resolve());
+    }).then(function(){
+      // Only once every file has actually been generated - a failure above skips this, so
       // nothing is marked Exported without a file to show for it.
       reimbursementConfirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Updating SharePoint...';
       var itemTypeLines = reimbursementLines.map(function(line){
@@ -3193,18 +3441,42 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
           if (failedDetailIds.indexOf(line.detailItemId) === -1) delete reimbursementSelected[line.detailItemId];
         });
         if (failedDetailIds.length){
-          alert('The Excel file was downloaded, but these items could not be marked as exported in E-Voucher Details: ' +
+          alert('The Excel files were downloaded, but these items could not be marked as exported in E-Voucher Details: ' +
             itemTypeLines.filter(function(line){
               return failedDetailIds.indexOf(line.detailItemId) !== -1;
             }).map(function(line){ return 'request ' + line.ref + ' "' + line.description + '" (' + line.itemType + ')'; }).join('; ') +
             '. They will still show in the list - set their ItemType and Export (Y) manually so they are not processed again.');
         }
-        return loadRequestsFromSharePoint();
+
+        // A request's Master Export becomes "Exported" only once every one of its line items is
+        // Export "Y" - counting both the items just saved and any exported earlier. One
+        // unexported item (not ticked, not yet Status C, or failed just now) leaves it unchanged.
+        var justExported = {};
+        itemTypeLines.forEach(function(line){
+          if (failedDetailIds.indexOf(line.detailItemId) === -1) justExported[line.detailItemId] = true;
+        });
+        var fullyExportedRefs = [];
+        itemTypeLines.forEach(function(line){
+          if (fullyExportedRefs.indexOf(line.ref) !== -1) return;
+          var reqItem = SUBMITTED_REQUESTS.filter(function(r){ return String(r.ref) === String(line.ref); })[0];
+          var items = (reqItem && reqItem.formData && reqItem.formData.lineItems) || [];
+          var allExported = items.length > 0 && items.every(function(item){
+            return item.exportFlag === 'Y' || justExported[item.detailItemId];
+          });
+          if (allExported) fullyExportedRefs.push(line.ref);
+        });
+        return window.spMarkMastersExported(fullyExportedRefs).then(function(failedRefs){
+          if (failedRefs.length){
+            alert('All items of these requests are exported, but their Master Export could not be set to "Exported": ' +
+              failedRefs.join(', ') + '. Update them in E-Voucher Master manually.');
+          }
+          return loadRequestsFromSharePoint();
+        });
       });
     }).catch(function(err){
       var message = (err && err.message) || 'Unknown error';
       alert(fileDownloaded
-        ? 'The Excel file was downloaded, but SharePoint could not be updated (' + message + '). These items are not marked as exported - set Export (Y) on them in E-Voucher Details so they are not processed again: ' +
+        ? 'Some or all Excel files were downloaded, but SharePoint could not be updated (' + message + '). These items are not marked as exported - set Export (Y) on them in E-Voucher Details so they are not processed again: ' +
           reimbursementLines.map(function(line){ return 'request ' + line.ref + ' "' + line.description + '"'; }).join('; ')
         : 'Could not generate the Excel file: ' + message);
     }).then(function(){
@@ -4726,6 +4998,28 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
           }).then(function(){ return null; }, function(err){
             console.warn('Could not mark E-Voucher Details item ' + line.detailItemId + ' as exported.', err);
             return line.detailItemId;
+          });
+        }));
+      });
+    }).then(function(results){
+      return results.filter(function(id){ return id !== null; });
+    });
+  };
+
+  // Sets Master's Export Choice column to "Exported" for each request in itemIds. Only called
+  // for requests whose every Details line item is already Export "Y" - the caller decides that.
+  // Resolves with the IDs that failed, like spMarkDetailsExported.
+  window.spMarkMastersExported = function(itemIds){
+    if (!itemIds.length) return Promise.resolve([]);
+    return getSpListId(SP_MASTER_LIST_NAME).then(function(masterListId){
+      return getSpSiteId().then(function(siteId){
+        return Promise.all(itemIds.map(function(itemId){
+          return graphRequest('/sites/' + siteId + '/lists/' + masterListId + '/items/' + itemId + '/fields', {
+            method: 'PATCH',
+            body: JSON.stringify({ Export: 'Exported' })
+          }).then(function(){ return null; }, function(err){
+            console.warn('Could not set Export to Exported for request ' + itemId + '.', err);
+            return itemId;
           });
         }));
       });

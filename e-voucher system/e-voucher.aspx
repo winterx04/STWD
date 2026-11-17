@@ -13,7 +13,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.11.12.21';
+  window.__EVOUCHER_VERSION__ = '2026.11.17.3';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -2510,6 +2510,23 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     return true;
   }
 
+  // View Requests (Pending / Completed & Rejected) is restricted to each submitter's own
+  // requests - everyone except members of the IT1/Finance1 email groups only ever sees what
+  // they themselves submitted. Does NOT affect Accounts Approval, which is a separate gated
+  // view for approving other people's requests and has nothing to do with who submitted them.
+  // IT1/Finance1 are mail-enabled groups, not individual mailboxes, so this can't be a plain
+  // email-string match - window.__canViewAllRequests is resolved asynchronously via actual
+  // group membership (see checkCurrentUserCanViewAllRequests in the SharePoint integration
+  // script block) and may still be unset for a moment right after sign-in; that block
+  // re-renders this list once it resolves, so a late "yes" doesn't get stuck unapplied.
+  function canViewAllRequests(){
+    return !!window.__canViewAllRequests;
+  }
+  function isOwnRequest(reqItem){
+    var mine = (window.__currentUserEmail || '').toLowerCase();
+    return !!mine && (reqItem.submitterEmail || '').toLowerCase() === mine;
+  }
+
   function setStatusFilter(filter){
     requestsStatusFilter = (requestsStatusFilter === filter) ? null : filter;
     statCards.forEach(function(card){
@@ -2574,7 +2591,14 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     // pages, not just the page currently showing).
     var pendingCount = 0, approvedCount = 0, rejectedCount = 0;
     var pendingIndices = [], completedIndices = [], accountsIndices = [];
+    var viewAll = canViewAllRequests();
     SUBMITTED_REQUESTS.forEach(function(reqItem, idx){
+      // Accounts Approval is unaffected by the per-submitter restriction below - it's about
+      // approving other people's requests, so it's handled first/independently.
+      if (reqItem.readyForAccounts) accountsIndices.push(idx);
+
+      if (!viewAll && !isOwnRequest(reqItem)) return;
+
       var matches = reqItemMatchesSearch(reqItem) && matchesStatusFilter(reqItem);
       if (PENDING_STATUSES.indexOf(reqItem.status) !== -1){
         pendingCount++;
@@ -2584,7 +2608,6 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         else if (reqItem.status === 'rejected') rejectedCount++;
         if (matches) completedIndices.push(idx);
       }
-      if (reqItem.readyForAccounts) accountsIndices.push(idx);
     });
 
     var pendingResult = paginateIndices(pendingIndices, pendingPage);
@@ -2613,6 +2636,11 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     completedCountBadge.textContent = completedIndices.length;
     renderReimbursementList();
   }
+  // Exposed so the SharePoint integration script block can force a re-render once the
+  // async IT1/Finance1 group-membership check (window.__canViewAllRequests) resolves -
+  // canViewAllRequests() may have already rendered this list restricted before that
+  // check came back.
+  window.__evoucherRefreshRequestsList = renderRequestsList;
 
   var requestsLoadError = document.getElementById('requestsLoadError');
   var requestsLoadErrorText = document.getElementById('requestsLoadErrorText');
@@ -3896,6 +3924,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   // groups - swap in a dedicated Accounts group's Object ID once one exists in Entra ID.
   var GROUP_ACC = [GROUP_HODS, GROUP_LAWYERS, GROUP_PARTNERS_IN_CHARGE, GROUP_SENIOR_PARTNERS];
   var ACC_EMAILS = ['vouchers@stwd.com.my'];
+  // Who can see every submitter's requests on View Requests, not just their own (see
+  // checkCurrentUserCanViewAllRequests/window.__canViewAllRequests) - both are mail-enabled
+  // groups, not individual mailboxes, so this is a real membership check, not an email match.
+  var GROUP_VIEW_ALL = ['863ef2d2-4b37-4e2f-a8d8-b1edb4e27146', 'dc5cf115-0a4a-4d48-9042-73715cecc08e'];
   var groupMembersPromises = {};
 
   function fetchGroupMembers(groupId){
@@ -4748,6 +4780,36 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         var navItem = document.getElementById(id);
         if (navItem) navItem.hidden = !isApprover;
       });
+    });
+  });
+
+  // Checks the signed-in account's email against the members of every group in
+  // GROUP_VIEW_ALL (membership in any one is enough). Gates View Requests' per-submitter
+  // restriction (window.__canViewAllRequests, read by canViewAllRequests() in the main form
+  // script block) - NOT itself a security boundary, same caveat as checkCurrentUserIsApprover.
+  window.checkCurrentUserCanViewAllRequests = function(account){
+    var email = (account && account.username || '').toLowerCase();
+    if (!email) return Promise.resolve(false);
+    return Promise.all(GROUP_VIEW_ALL.map(function(groupId){
+      return fetchGroupMembers(groupId).catch(function(err){
+        console.warn('Could not check group membership for ' + groupId + '.', err);
+        return [];
+      });
+    })).then(function(memberLists){
+      return memberLists.some(function(members){
+        return members.some(function(m){
+          return (m.mail || '').toLowerCase() === email || (m.userPrincipalName || '').toLowerCase() === email;
+        });
+      });
+    });
+  };
+
+  window.eVoucherSignInHandlers.push(function(account){
+    window.checkCurrentUserCanViewAllRequests(account).then(function(canViewAll){
+      window.__canViewAllRequests = canViewAll;
+      // The requests list may have already rendered (restricted) before this async check
+      // came back - refresh it now so a "yes" doesn't sit unapplied.
+      if (typeof window.__evoucherRefreshRequestsList === 'function') window.__evoucherRefreshRequestsList();
     });
   });
 

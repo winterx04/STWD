@@ -9,11 +9,50 @@
 <title>E-Voucher Request System</title>
 <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/winterx04/STWD/main/icons/e-voucher.png">
 <script>
+  // MSAL sign-in popup landing (reported 2026-11-18: "it keeps popping up an extra window of
+  // the system"). getGraphToken falls back to acquireTokenPopup when a silent token refresh
+  // fails, and that popup is sent back to THIS page with the auth response in its #hash. The
+  // opener's MSAL polls the popup, reads that hash and closes the popup itself - but only if
+  // the hash is still there. Loading the whole app in the popup ran its own MSAL/
+  // handleRedirectPromise, which consumed the hash first, so the opener never saw it and the
+  // popup was left open as a second copy of the app. So: inside an MSAL popup, load nothing.
+  (function(){
+    var isMsalPopup = false;
+    var isMsalSilentFrame = false;
+    try {
+      // MSAL 2.x names its popup windows "msal.<clientId>...".
+      isMsalPopup = !!window.opener && window.opener !== window && String(window.name).indexOf('msal.') === 0;
+      // Same problem with MSAL's hidden silent-renewal iframe (ssoSilent/acquireTokenSilent
+      // once the refresh token is rejected): it also lands back on this page with the
+      // response in the #hash, and the full app booting inside it ate the hash AND tried to
+      // redirect the whole tab (blocked - "Unsafe attempt to initiate navigation"), so silent
+      // renewal always failed and every page load fell through to a full-tab sign-in
+      // redirect - the "keeps flashing" loop reported 2026-11-18.
+      isMsalSilentFrame = window.parent !== window && /[#&](code|error|state)=/.test(location.hash);
+    } catch (e) {}
+    if (isMsalSilentFrame){
+      window.__EVOUCHER_AUTH_POPUP__ = true;
+      if (window.stop) window.stop(); else document.execCommand('Stop');
+      return;
+    }
+    if (!isMsalPopup) return;
+    window.__EVOUCHER_AUTH_POPUP__ = true;
+    if (window.stop) window.stop(); else document.execCommand('Stop');
+    document.title = 'Signing in...';
+    var body = document.createElement('body');
+    body.style.cssText = 'font-family:Segoe UI,Arial,sans-serif;color:#01345f;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;';
+    body.textContent = 'Completing sign-in... this window will close automatically.';
+    document.documentElement.appendChild(body);
+    // Safety net if the opener was closed/reloaded and can't close this window itself.
+    setTimeout(function(){ try { window.close(); } catch (e) {} }, 8000);
+  })();
+</script>
+<script>
   // Bump this string every time this file is re-uploaded to the document library.
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.11.17.16';
+  window.__EVOUCHER_VERSION__ = '2026.11.18.4';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -2163,6 +2202,13 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
     var showMatter = !matterSection.hidden;
     if (showMatter) req(matterNumber, 'Matter number is required.');
+    // SharePoint's MatterNo column is a Number field - anything other than digits (a dash,
+    // slash, letter or inner space) makes Graph reject the whole submit with a 400
+    // "badArgument / One of the provided arguments is not acceptable", so catch it here.
+    if (showMatter && matterNumber.value.trim() && !/^\d+$/.test(matterNumber.value.trim())){
+      matterNumber.classList.add('invalid');
+      errors.push('Matter number must contain digits only (no spaces, dashes, slashes or letters).');
+    }
 
     req(payeeInput, 'Payee is required.');
     var payeeLetterCount = (payeeInput.value.match(/[A-Za-z]/g) || []).length;
@@ -3544,6 +3590,37 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     document.getElementById('seniorPartner2Email').value = data.seniorPartner2Email || '';
   }
 
+  // ---------- Draft kept across a same-tab sign-in ----------
+  // When the token needs refreshing interactively, getGraphToken now signs in with a
+  // same-tab redirect (no popup window) - which navigates away from this page. Whatever was
+  // typed into the form is stashed in sessionStorage first and put back on return.
+  // Attachments are File objects and can't be stored, so they have to be re-added.
+  var DRAFT_KEY = 'evoucherFormDraft';
+  window.__evoucherSaveDraft = function(){
+    try {
+      var data = collectData();
+      var hasContent = data.nominalType || data.matterNumber || data.payee ||
+        (data.lineItems || []).some(function(li){ return li.description || li.invoice || li.amount; });
+      if (hasContent) sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ data: data, hadFiles: files.length > 0 }));
+    } catch (e) { console.warn('Could not save form draft before sign-in.', e); }
+  };
+  // Called at the very end of this script block, once every control is set up.
+  function restoreDraft(){
+    var saved = null;
+    try {
+      saved = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null');
+      sessionStorage.removeItem(DRAFT_KEY);
+    } catch (e) {}
+    if (!saved || !saved.data) return;
+    applyFormData(saved.data);
+    updateTracker();
+    if (saved.hadFiles){
+      setTimeout(function(){
+        alert('You were signed in again and your form has been restored. Please re-attach your supporting documents before submitting.');
+      }, 0);
+    }
+  }
+
   // ---------- Copy From An Existing Request ----------
   // Open to any ID regardless of status (unlike Edit & Resubmit, which stays restricted to
   // Rejected items) - but never carries over attachments or each line item's amount, per
@@ -3713,6 +3790,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   updateBankNameMode();
   recalc();
   renderRequestsList();
+  restoreDraft();
 })();
 </script>
 
@@ -3736,6 +3814,19 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       storeAuthStateInCookie: true
     }
   };
+  // MSAL marks "an interaction is in progress" in browser storage and only clears it when
+  // that interaction finishes; a stuck/closed sign-in can leave it set, making later sign-ins
+  // fail with interaction_in_progress. Only cleared reactively (getGraphToken's retry) - NOT
+  // on page load: after a sign-in redirect MSAL may re-navigate to the original page URL
+  // (e.g. one carrying ?_v=) with the response held in storage rather than the URL, and
+  // MSAL 2.x's handleRedirectPromise silently discards the response if this flag is gone -
+  // clearing it on load broke every same-tab sign-in (2026-11-18).
+  function clearStaleInteractionFlag(){
+    [window.sessionStorage, window.localStorage].forEach(function(store){
+      try { store.removeItem('msal.interaction.status'); } catch (e) {}
+    });
+  }
+
   var msalInstance = new msal.PublicClientApplication(msalConfig);
 
   // Adjust to match what your tenant admin has actually granted consent for.
@@ -3827,13 +3918,94 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     }
   }).catch(showSignInError);
 
-  // Reusable helper for the future SharePoint/Graph list integration.
+  // Reusable helper for the SharePoint/Graph list integration.
+  // When the silent refresh fails (SPA refresh tokens only last ~24h), sign in again in the
+  // SAME tab via acquireTokenRedirect - not a popup (popups were opening a second copy of the
+  // app and, with several Graph calls firing at once, failing with interaction_in_progress;
+  // both reported 2026-11-18). Only the first caller starts the redirect; every caller gets
+  // a promise that never settles while the page navigates away, so nothing shows a spurious
+  // error mid-redirect. The form draft is saved first (see __evoucherSaveDraft) and restored
+  // when the page comes back; handleRedirectPromise above then picks the session back up.
+  var tokenRedirectPromise = null;
+  function isInteractionInProgress(err){
+    return err && (err.errorCode === 'interaction_in_progress' || /interaction_in_progress/.test(err.message || ''));
+  }
+  var REDIRECT_STAMP_KEY = 'evoucherTokenRedirectAt';
+
+  // Ask for EVERY scope the app uses in one sign-in (not just this caller's), so the token it
+  // returns satisfies all the other Graph calls too - otherwise each differently-scoped call
+  // could fail silent renewal and trigger its own redirect. SharePoint-resource scopes
+  // (getSpRestToken's "https://<host>/AllSites.Write") can't be mixed with Graph scopes in
+  // one request, so those keep their own scopes.
+  function redirectRequestFor(scopes, account){
+    var isOtherResource = (scopes || []).some(function(s){ return /^https?:\/\//i.test(s); });
+    return {
+      scopes: isOtherResource ? scopes
+        : LOGIN_SCOPES.concat((scopes || []).filter(function(s){ return LOGIN_SCOPES.indexOf(s) === -1; })),
+      account: account
+    };
+  }
+
+  // Shown when the loop guard stops an automatic redirect - the user clicks to sign in
+  // again (a deliberate click can't loop), instead of being left with only error messages.
+  function showSignInAgainBanner(redirectRequest){
+    if (document.getElementById('signInAgainBanner')) return;
+    var bar = document.createElement('div');
+    bar.id = 'signInAgainBanner';
+    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b8551a;color:#fff;' +
+      'padding:10px 16px;display:flex;gap:12px;align-items:center;justify-content:center;font-size:14px;';
+    bar.textContent = 'Your sign-in has expired.';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = 'Sign in again';
+    btn.style.cssText = 'background:#fff;color:#b8551a;border:0;border-radius:6px;padding:6px 14px;font-weight:600;cursor:pointer;';
+    btn.addEventListener('click', function(){
+      btn.disabled = true;
+      try { sessionStorage.removeItem(REDIRECT_STAMP_KEY); } catch (e) {}
+      if (typeof window.__evoucherSaveDraft === 'function') window.__evoucherSaveDraft();
+      clearStaleInteractionFlag();
+      msalInstance.acquireTokenRedirect(redirectRequest).catch(function(err){
+        btn.disabled = false;
+        alert('Sign-in failed: ' + ((err && (err.errorCode || err.message)) || 'Unknown error'));
+      });
+    });
+    bar.appendChild(btn);
+    document.body.appendChild(bar);
+  }
   window.getGraphToken = function(scopes){
     var account = msalInstance.getActiveAccount();
     if (!account) return Promise.reject(new Error('Not signed in'));
     var request = { scopes: scopes || LOGIN_SCOPES, account: account };
-    return msalInstance.acquireTokenSilent(request).catch(function(){
-      return msalInstance.acquireTokenPopup(request);
+    return msalInstance.acquireTokenSilent(request).catch(function(silentErr){
+      if (!tokenRedirectPromise){
+        // Loop guard: if we already redirected for sign-in moments ago and silent still
+        // fails, another redirect would just reload the page again (flashing) - stop and
+        // surface the error instead.
+        var lastRedirect = 0;
+        try { lastRedirect = parseInt(sessionStorage.getItem(REDIRECT_STAMP_KEY), 10) || 0; } catch (e) {}
+        if (Date.now() - lastRedirect < 2 * 60 * 1000){
+          console.error('Silent token renewal still failing right after a sign-in redirect - not redirecting again.', silentErr);
+          showSignInAgainBanner(redirectRequestFor(scopes, account));
+          return Promise.reject(new Error('Could not refresh your sign-in. Please sign out and sign in again. (' +
+            ((silentErr && (silentErr.errorCode || silentErr.message)) || 'unknown') + ')'));
+        }
+        try { sessionStorage.setItem(REDIRECT_STAMP_KEY, String(Date.now())); } catch (e) {}
+        if (typeof window.__evoucherSaveDraft === 'function') window.__evoucherSaveDraft();
+        var redirectRequest = redirectRequestFor(scopes, account);
+        tokenRedirectPromise = msalInstance.acquireTokenRedirect(redirectRequest).catch(function(err){
+          // A stale "in progress" flag (e.g. left by an old stuck popup) blocks every new
+          // interaction - clear it and try once more.
+          if (!isInteractionInProgress(err)) throw err;
+          clearStaleInteractionFlag();
+          return msalInstance.acquireTokenRedirect(redirectRequest);
+        }).then(function(){
+          return new Promise(function(){}); // page is navigating to Microsoft sign-in
+        }, function(err){
+          tokenRedirectPromise = null;
+          throw err;
+        });
+      }
+      return tokenRedirectPromise;
     });
   };
 })();
@@ -4567,7 +4739,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     // guaranteed to be purely numeric - send whatever was entered as-is (SharePoint will
     // reject it visibly if the column truly can't hold it, rather than this silently
     // dropping the value). Only omitted when genuinely blank (Office/Client requests).
-    if (data.matterNumber) fields.MatterNo = data.matterNumber;
+    // Trimmed and sent as a real number - a stray leading/trailing space (common when the
+    // number is pasted) is otherwise rejected by Graph as a 400 badArgument.
+    var matterNoText = String(data.matterNumber || '').trim();
+    if (matterNoText) fields.MatterNo = /^\d+$/.test(matterNoText) ? Number(matterNoText) : matterNoText;
     // Dedicated Choice column (values "Matter"/"Office") added specifically so a Staff Claim's
     // subtype is actually recorded somewhere, rather than relying on guessing it back out of
     // RequestType's own text (which often can't distinguish the two at all - see
@@ -4601,6 +4776,11 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         return graphRequest('/sites/' + siteId + '/lists/' + masterListId + '/items', {
           method: 'POST',
           body: JSON.stringify({ fields: fields })
+        }).catch(function(err){
+          // Graph's 400 doesn't name the rejected column, so log what was sent and say
+          // which step failed - otherwise Master vs Details failures look identical.
+          console.error('E-Voucher Master create failed. Fields sent:', fields, err);
+          throw new Error('Saving the request (E-Voucher Master) failed - ' + ((err && err.message) || err));
         });
       });
     }).then(function(created){
@@ -4615,7 +4795,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       });
       return getSpListId(SP_DETAILS_LIST_NAME).then(function(detailsListId){
         return getSpSiteId().then(function(siteId){
-          return Promise.all(lineItems.map(function(item){
+          return Promise.all(lineItems.map(function(item, lineIndex){
             var detailFields = {
               PaymentDescription: item.description || '',
               InvoiceNo: item.invoice || '',
@@ -4633,6 +4813,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
             return graphRequest('/sites/' + siteId + '/lists/' + detailsListId + '/items', {
               method: 'POST',
               body: JSON.stringify({ fields: detailFields })
+            }).catch(function(err){
+              console.error('E-Voucher Details create failed for line ' + (lineIndex + 1) + '. Fields sent:', detailFields, err);
+              throw new Error('Request #' + createdMaster.id + ' was created in E-Voucher Master, but saving line item ' +
+                (lineIndex + 1) + ' (E-Voucher Details) failed - ' + ((err && err.message) || err));
             });
           }));
         });

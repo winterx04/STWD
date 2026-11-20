@@ -52,7 +52,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.11.18.4';
+  window.__EVOUCHER_VERSION__ = '2026.11.20.1';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -1189,7 +1189,7 @@
               <button type="button" class="btn btn-outline" id="addRowBtn"><i class="fa-solid fa-plus"></i> Add line item</button>
             </div>
 
-            <p class="hint warning" id="staffCapWarning" hidden>&#9888; Staff claims must not exceed RM10,000.00 per claim. Please adjust the highlighted line(s).</p>
+            <p class="hint warning" id="staffCapWarning" hidden></p>
             <p class="hint warning" id="lineItemLimitWarning" hidden>&#9888; A maximum of 5 line items is allowed per request.</p>
 
             <div class="grid-2 totals">
@@ -1892,36 +1892,34 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   function recalc(){
     var rows = Array.prototype.slice.call(lineItemsBody.querySelectorAll('tr'));
     var total = 0;
-    var hasCapBreach = false;
-    var isStaff = nominalType.value === 'staff';
-
+    // Staff Claims used to be capped at RM10,000 per line; removed 2026-11-20 - above that
+    // they now route to Senior Partner(s) instead (see updateSeniorPartnerAvailability).
     rows.forEach(function(tr){
       var amountInput = tr.querySelector('.amount-input');
-      var amount = parseAmount(amountInput.value);
-      total += amount;
-
+      total += parseAmount(amountInput.value);
       amountInput.classList.remove('invalid');
-      if (isStaff && amount > 10000){
-        hasCapBreach = true;
-        amountInput.classList.add('invalid');
-      }
     });
 
     totalAmountField.value = formatAmount(total);
-    staffCapWarning.hidden = !hasCapBreach;
+    staffCapWarning.hidden = true;
 
     headerTotal.textContent = currencySelect.value + ' ' + total.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     updateSeniorPartnerAvailability(total);
     updateTracker();
-    return { total: total, hasCapBreach: hasCapBreach };
+    return { total: total };
   }
 
   // ---------- Senior Partner / Lawyer-In-Charge routing ----------
-  // Matter Related >= RM10,000: LIC + PIC (existing baseline) + 1 Senior Partner.
-  // Office Related: NO Lawyer-In-Charge/HOD (removed per instruction) - just PIC + 1 Senior
-  // Partner, and >= RM10,000: a 2nd Senior Partner too.
-  // Staff Claim: unaffected (capped at RM10,000, LIC + PIC baseline only - no Senior Partner).
+  // Approval matrix (updated 2026-11-20; threshold is RM10,000.00 and above, any payment
+  // method - the old FPX exemption is gone, as the approval flow never honoured it and FPX
+  // requests >= RM10k got stuck waiting for a Senior Partner instead of reaching Finance):
+  // Matter Related:        LIC + PIC;            >= RM10k: + 1 Senior Partner.
+  // Staff Claim (Matter):  LIC + PIC;            >= RM10k: + 1 Senior Partner.
+  // Staff Claim (Office):  HOD + 1 Senior Partner (the "PIC" field, saved to SeniorPartner1);
+  //                        >= RM10k: + a 2nd Senior Partner (SeniorPartner2).
+  // Office Related:        NO Lawyer-In-Charge/HOD - just PIC + 1 Senior Partner, and
+  //                        >= RM10k: a 2nd Senior Partner too (unchanged).
   var SENIOR_PARTNER_THRESHOLD = 10000;
   var lawyerInChargeField = document.getElementById('lawyerInChargeField');
   var lawyerInChargeInput = document.getElementById('lawyerInCharge');
@@ -1952,12 +1950,11 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   function updateSeniorPartnerAvailability(total){
     var isOffice = nominalType.value === 'office';
     var isHighValue = total >= SENIOR_PARTNER_THRESHOLD;
-    // FPX drops the Senior Partner requirement that the >=RM10,000 threshold would otherwise
-    // trigger - Office Related's own baseline (always needs 1 Senior Partner, regardless of
-    // amount) is untouched since that one was never conditional on the threshold to begin with.
-    var isFPX = modeOfPaymentSelect.value.toLowerCase().indexOf('fpx') !== -1;
-    var needSP1 = isOffice || (nominalType.value === 'matter' && isHighValue && !isFPX);
-    var needSP2 = isOffice && isHighValue && !isFPX;
+    var isStaffMatter = nominalType.value === 'staff' && staffSubtype.value !== 'office';
+    // Staff Claim (Office)'s first Senior Partner is the relabelled PIC field, so the
+    // separate Senior Partner 1 field never shows for it - only Senior Partner 2.
+    var needSP1 = isOffice || ((nominalType.value === 'matter' || isStaffMatter) && isHighValue);
+    var needSP2 = (isOffice || isStaffOfficeClaim()) && isHighValue;
     var needLawyer = !isOffice;
 
     partnerInChargeLabel.textContent = partnerInChargeLabelText() + ' *';
@@ -2202,13 +2199,6 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
     var showMatter = !matterSection.hidden;
     if (showMatter) req(matterNumber, 'Matter number is required.');
-    // SharePoint's MatterNo column is a Number field - anything other than digits (a dash,
-    // slash, letter or inner space) makes Graph reject the whole submit with a 400
-    // "badArgument / One of the provided arguments is not acceptable", so catch it here.
-    if (showMatter && matterNumber.value.trim() && !/^\d+$/.test(matterNumber.value.trim())){
-      matterNumber.classList.add('invalid');
-      errors.push('Matter number must contain digits only (no spaces, dashes, slashes or letters).');
-    }
 
     req(payeeInput, 'Payee is required.');
     var payeeLetterCount = (payeeInput.value.match(/[A-Za-z]/g) || []).length;
@@ -2263,6 +2253,14 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     if (!seniorPartner2Field.hidden){
       req(seniorPartner2Input, 'Senior Partner 2 is required.');
       reqResolvedPerson('seniorPartner2', 'seniorPartner2Email', 'Senior Partner 2');
+      // Two Senior Partners must be two different people - for Staff Claim (Office) the
+      // first one is the relabelled Partner-In-Charge field, otherwise Senior Partner 1.
+      var sp2EmailVal = document.getElementById('seniorPartner2Email').value.toLowerCase();
+      var firstSpEmail = isStaffOfficeClaim() ? (partnerEmailVal || '') : document.getElementById('seniorPartnerEmail').value;
+      if (sp2EmailVal && firstSpEmail && sp2EmailVal === firstSpEmail.toLowerCase()){
+        seniorPartner2Input.classList.add('invalid');
+        errors.push('Senior Partner 1 and Senior Partner 2 cannot be the same person.');
+      }
     }
 
     var rows = Array.prototype.slice.call(lineItemsBody.querySelectorAll('tr'));
@@ -2287,8 +2285,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     if (!files.length) errors.push('At least one attachment is required.');
     dropzone.classList.toggle('invalid', !files.length);
 
-    var calc = recalc();
-    if (calc.hasCapBreach) errors.push('One or more staff claim amounts exceed RM10,000.00.');
+    recalc();
     if (calc.total <= 0) errors.push('Total amount must be greater than zero.');
 
     return errors;
@@ -4025,7 +4022,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
      MasterID client-side" on read (see spSubmitRequest/spFetchRequests below) - no
      @odata.bind or lookup-list semantics involved.
 
-     Master columns of interest: MatterNo (Number), ClientName/MatterDescription/Payee/
+     Master columns of interest: MatterNo (must be Text - matter numbers can have letters), ClientName/MatterDescription/Payee/
      BankNo/BankNameForeign (Text), ModeOfPayment/Currency/RequestType/BankName (Choice),
      TotalAmount (Number), LawyerInCharge/PartnerInCharge/SeniorPartner1/SeniorPartner2/
      Accounts (Person/Group), LawyerStatus/PartnerStatus/SeniorPartner1Status/
@@ -4038,12 +4035,15 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
      SeniorPartner/Accounts stage statuses (those are only shown for extra context in the
      details modal).
 
-     Senior Partner routing rule (2026-09-26, updated 2026-10-14): Matter Related >=
-     RM10,000 needs 1 Senior Partner (on top of the existing LIC+PIC baseline); Office
-     Related has NO Lawyer-In-Charge/HOD step at all (removed 2026-10-14) - just PIC + 1
-     Senior Partner regardless of amount, and a 2nd ("Senior Partner 2") if also >=
-     RM10,000; Staff Claim is unaffected (already capped at RM10,000, LIC+PIC baseline
-     only). See updateSeniorPartnerAvailability in the form's own script block (despite the
+     Senior Partner routing rule (2026-09-26, updated 2026-10-14 and 2026-11-20): Matter
+     Related >= RM10,000 needs 1 Senior Partner (on top of the existing LIC+PIC baseline);
+     Office Related has NO Lawyer-In-Charge/HOD step at all (removed 2026-10-14) - just PIC
+     + 1 Senior Partner regardless of amount, and a 2nd ("Senior Partner 2") if also >=
+     RM10,000; Staff Claim (Matter) >= RM10,000 adds 1 Senior Partner like Matter Related;
+     Staff Claim (Office) is HOD + 1 Senior Partner, and >= RM10,000 a 2nd Senior Partner.
+     No FPX exemption any more, and no RM10,000 cap on Staff Claims. The approval flow must
+     apply the same rules, or requests wait for an approver that was never picked and never
+     reach Accounts. See updateSeniorPartnerAvailability in the form's own script block (despite the
      name, it now also toggles Lawyer-In-Charge's visibility/required state) and the
      approval flow, which decides when AccountsStatus becomes "Pending" (the page's
      readyForAccounts only reads that column - 2026-10-24).
@@ -4060,7 +4060,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
      process, so the form has no field for it.
 
      Details columns of interest: PaymentDescription/InvoiceNo (Text), Amount (Number),
-     MasterID (Number, see above), plus its own mirrored MatterNo (Number)/RType (Text).
+     MasterID (Number, see above), plus its own mirrored MatterNo (must be Text too)/RType (Text).
      Export (Y/N) and Status (P/C/A/R) also exist on Details but are intentionally left
      unset by spSubmitRequest - like Master's own Status/LawyerStatus/PartnerStatus, they
      look like they belong to a later accounting/approval workflow, not the submitter.
@@ -4735,14 +4735,13 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     // currency OR "Others" picked for an unlisted local bank both count as "foreign" here).
     if (data.bankNameIsForeign) fields.BankNameForeign = data.bankName || '';
     else fields.BankName = data.bankName || '';
-    // MatterNo's SharePoint column is currently typed as Number, but matter numbers aren't
-    // guaranteed to be purely numeric - send whatever was entered as-is (SharePoint will
-    // reject it visibly if the column truly can't hold it, rather than this silently
-    // dropping the value). Only omitted when genuinely blank (Office/Client requests).
-    // Trimmed and sent as a real number - a stray leading/trailing space (common when the
-    // number is pasted) is otherwise rejected by Graph as a 400 badArgument.
+    // Matter numbers can contain letters (confirmed 2026-11-20), so MatterNo must be a
+    // "Single line of text" column on BOTH Master and Details - while it was still a Number
+    // column, any alphabetical matter number failed with Graph 400 badArgument. Sent as
+    // trimmed text (a stray pasted space would otherwise be stored too). Only omitted when
+    // genuinely blank (Office requests).
     var matterNoText = String(data.matterNumber || '').trim();
-    if (matterNoText) fields.MatterNo = /^\d+$/.test(matterNoText) ? Number(matterNoText) : matterNoText;
+    if (matterNoText) fields.MatterNo = matterNoText;
     // Dedicated Choice column (values "Matter"/"Office") added specifically so a Staff Claim's
     // subtype is actually recorded somewhere, rather than relying on guessing it back out of
     // RequestType's own text (which often can't distinguish the two at all - see

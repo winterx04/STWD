@@ -52,7 +52,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.11.20.1';
+  window.__EVOUCHER_VERSION__ = '2026.11.20.5';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -2285,7 +2285,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     if (!files.length) errors.push('At least one attachment is required.');
     dropzone.classList.toggle('invalid', !files.length);
 
-    recalc();
+    var calc = recalc();
     if (calc.total <= 0) errors.push('Total amount must be greater than zero.');
 
     return errors;

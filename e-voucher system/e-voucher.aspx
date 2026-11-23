@@ -52,7 +52,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.11.23.4';
+  window.__EVOUCHER_VERSION__ = '2026.11.24.1';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -1221,6 +1221,14 @@
             </div>
             <p class="hint warning" id="attachmentError" hidden></p>
             <ul class="file-list" id="fileList"></ul>
+
+            <!-- Saved to Master's SubmitterRemarks column (2026-11-24). Mainly so a resubmission
+                 can say it replaces an earlier rejected request - Edit & Resubmit pre-fills it. -->
+            <div class="field" style="margin-top:16px;">
+              <label for="submitterRemarks">Remarks</label>
+              <textarea id="submitterRemarks" rows="3" maxlength="1000" style="width:100%;resize:vertical;font-family:inherit;"
+                placeholder="Optional - e.g. resubmission of rejected request ID 123, with the corrected invoice attached."></textarea>
+            </div>
           </section>
 
           <div class="actions">
@@ -2375,6 +2383,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       lineItems: rows,
       currency: document.getElementById('currency').value,
       totalAmount: totalAmountField.value,
+      remarks: document.getElementById('submitterRemarks').value.trim(),
       fileNames: files.map(function(f){ return f.name; })
     };
   }
@@ -2818,6 +2827,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       ['Amount', reqItem.currency + ' ' + reqItem.amount],
       ['Date Submitted', reqItem.date]
     ];
+    // Submitter's own remarks (e.g. "Resubmission of rejected request ID 123") - only shown
+    // when there are some, since most requests won't have any.
+    if (reqItem.submitterRemarks) overviewRows.push(['Remarks', reqItem.submitterRemarks]);
     // Staff Claim category (Matter vs Office) isn't its own SharePoint column - it's folded
     // into the RequestType Choice text itself (see inferTypeFromText/requestTypeForSharePoint),
     // so it's otherwise invisible here unless called out as its own row.
@@ -3587,6 +3599,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     document.getElementById('seniorPartnerEmail').value = data.seniorPartnerEmail || '';
     seniorPartner2Input.value = data.seniorPartner2 || '';
     document.getElementById('seniorPartner2Email').value = data.seniorPartner2Email || '';
+    // Only a saved draft carries remarks; formData read back from SharePoint deliberately
+    // doesn't, so Copy From / Edit & Resubmit start from a blank Remarks box.
+    document.getElementById('submitterRemarks').value = data.remarks || '';
   }
 
   // ---------- Draft kept across a same-tab sign-in ----------
@@ -3663,6 +3678,8 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var reqItem = SUBMITTED_REQUESTS[currentDetailsIdx];
     if (!reqItem || !reqItem.formData) return;
     applyFormData(reqItem.formData);
+    // Say up front that this replaces the rejected request, so approvers can tell (2026-11-24).
+    document.getElementById('submitterRemarks').value = 'Resubmission of rejected request ID ' + reqItem.ref + '. ';
     // Edit & Resubmit already loads this exact request's data - surfacing its own ID in the
     // Copy From field too just saves having to go look it up again if they want to re-pull it.
     copyFromIdInput.value = reqItem.ref;
@@ -4788,6 +4805,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     // RequestType's own text (which often can't distinguish the two at all - see
     // inferTypeFromText). Only meaningful for Staff Claims; omitted otherwise.
     if (data.nominalType === 'staff') fields.StaffClaimCategory = data.staffSubtype === 'office' ? 'Office' : 'Matter';
+    // Submitter's own remarks (Multiple lines of text column "SubmitterRemarks", 2026-11-24).
+    // Only sent when filled in, so a blank Remarks box never depends on the column existing.
+    if (data.remarks) fields.SubmitterRemarks = data.remarks;
 
     var createdMaster;
     return Promise.all([
@@ -5025,6 +5045,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
             seniorPartnerRemarks: f.SeniorPartner1Remarks || '',
             seniorPartner2Remarks: f.SeniorPartner2Remarks || '',
             accountsRemarks: f.AccountsRemarks || '',
+            submitterRemarks: f.SubmitterRemarks || '',
             attachments: attachmentsByMasterId[row.id] || [],
             formData: {
               nominalType: typeInfo.nominalType,

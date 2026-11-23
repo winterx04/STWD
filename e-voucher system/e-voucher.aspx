@@ -52,7 +52,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.11.20.5';
+  window.__EVOUCHER_VERSION__ = '2026.11.23.4';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -1058,11 +1058,11 @@
                 <label for="modeOfPayment">Mode Of Payment *</label>
                 <select id="modeOfPayment" required>
                   <option value="">Select mode</option>
-                  <option>Bank Draft</option>
+                  <option>Banker's Cheque</option>
                   <option>Cheque</option>
-                  <option>InterBank GIRO (IBG)</option>
-                  <option>Rentas</option>
-                  <option>Telegraphic Transfer (TT)</option>
+                  <option>InterBank GIRO (IBG - Local Transfer)</option>
+                  <option>RENTAS Transfer (Local)</option>
+                  <option>Telegraphic Transfer (TT - OVERSEAS)</option>
                   <option>FPX</option>
                   <option>JomPAY</option>
                 </select>
@@ -2075,6 +2075,8 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var bankAccountNumberInput = document.getElementById('bankAccountNumber');
   var bankAccountNumberLabel = document.getElementById('bankAccountNumberLabel');
 
+  // (Mode names renamed 2026-11-23: "Bank Draft" -> "Banker's Cheque", still caught by the
+  // 'cheque' match below; 'bank draft' is kept for older requests copied/resubmitted.)
   // Bank Draft/Cheque/FPX/JomPAY aren't paid into a specific bank account the same way a
   // transfer is, so Bank Name doesn't apply. FPX also has no concept of an account number
   // at all (it's an online banking redirect, not a destination account), so that field is
@@ -4022,7 +4024,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
      MasterID client-side" on read (see spSubmitRequest/spFetchRequests below) - no
      @odata.bind or lookup-list semantics involved.
 
-     Master columns of interest: MatterNo (must be Text - matter numbers can have letters), ClientName/MatterDescription/Payee/
+     Master columns of interest: MatterNo (Text), ClientName/MatterDescription/Payee/
      BankNo/BankNameForeign (Text), ModeOfPayment/Currency/RequestType/BankName (Choice),
      TotalAmount (Number), LawyerInCharge/PartnerInCharge/SeniorPartner1/SeniorPartner2/
      Accounts (Person/Group), LawyerStatus/PartnerStatus/SeniorPartner1Status/
@@ -4060,7 +4062,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
      process, so the form has no field for it.
 
      Details columns of interest: PaymentDescription/InvoiceNo (Text), Amount (Number),
-     MasterID (Number, see above), plus its own mirrored MatterNo (must be Text too)/RType (Text).
+     MasterID (Number, see above), plus its own mirrored MatterNo/RType (Text).
      Export (Y/N) and Status (P/C/A/R) also exist on Details but are intentionally left
      unset by spSubmitRequest - like Master's own Status/LawyerStatus/PartnerStatus, they
      look like they belong to a later accounting/approval workflow, not the submitter.
@@ -4425,10 +4427,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         // Filter the already self-excluded list, not the original members - filtering from
         // members here would silently undo the self-exclusion above the moment any query
         // text was typed, letting the submitter reappear as soon as they searched for anything.
+        // Display name only (2026-11-23) - matching mail/UPN too meant anything in the shared
+        // email domain (e.g. "stwd") matched every single person in the group.
         list = list.filter(function(p){
-          return (p.displayName || '').toLowerCase().indexOf(q) !== -1 ||
-                 (p.mail || '').toLowerCase().indexOf(q) !== -1 ||
-                 (p.userPrincipalName || '').toLowerCase().indexOf(q) !== -1;
+          return (p.displayName || '').toLowerCase().indexOf(q) !== -1;
         });
       }
       // No cap here - these are small, role-scoped groups (not an org-wide search), and
@@ -4463,9 +4465,23 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var picker = input.closest('.people-picker');
     var hiddenEmail = config.hiddenEmailId ? document.getElementById(config.hiddenEmailId) : null;
     var debounceTimer = null;
+    var blurHideTimer = null;
+    var searchSeq = 0;
     var currentResults = [];
 
-    function showBox(){ box.hidden = false; picker.classList.add('open'); }
+    // Fixes for "the LIC/PIC search box sometimes works, sometimes not" (2026-11-23):
+    // - blur's delayed hide used to fire AFTER a quick re-focus had already reopened the
+    //   list, closing it again - pending blur-hides are now cancelled on (re)open;
+    // - clicking a field that still had focus (no new 'focus' event) did nothing - a click
+    //   now opens the list too;
+    // - a slow first load of a group's members showed nothing at all - a "Loading..." line
+    //   shows immediately, and members are prefetched right after sign-in;
+    // - an older search finishing after a newer one (or after leaving the field) could
+    //   overwrite or reopen the list - stale results are now ignored.
+    function showBox(){
+      clearTimeout(blurHideTimer);
+      box.hidden = false; picker.classList.add('open');
+    }
     function hideBox(){ box.hidden = true; box.innerHTML = ''; picker.classList.remove('open'); }
     openPeoplePickers.push(hideBox);
 
@@ -4486,6 +4502,12 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
     function runSearch(query){
       var groupId = typeof config.getGroupId === 'function' ? config.getGroupId() : config.groupId;
+      var seq = ++searchSeq;
+      function isCurrent(){ return seq === searchSeq && document.activeElement === input; }
+      if (!currentResults.length || box.hidden){
+        box.innerHTML = '<div class="p-status"><i class="fa-solid fa-spinner fa-spin"></i> Loading...</div>';
+        showBox();
+      }
       searchPeople(query, groupId).then(function(people){
         // Some pickers exclude whoever is CURRENTLY picked in another field (e.g. Senior
         // Partner 1 can't be the same person as Partner-In-Charge) - read that other field's
@@ -4497,10 +4519,21 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
           if (excludeEmail) people = people.filter(function(p){ return (personEmail(p) || '').toLowerCase() !== excludeEmail; });
         }
         return people;
-      }).then(renderResults).catch(function(){
-        box.innerHTML = '<div class="p-status">Search unavailable right now - you can still type a name manually.</div>';
+      }).then(function(people){
+        if (isCurrent()) renderResults(people);
+      }).catch(function(err){
+        console.warn('People search failed.', err);
+        if (!isCurrent()) return;
+        box.innerHTML = '<div class="p-status">Could not load names - click the field again to retry.</div>';
         showBox();
       });
+    }
+
+    function openFullList(){
+      clearTimeout(blurHideTimer);
+      clearTimeout(debounceTimer);
+      openPeoplePickers.forEach(function(hide){ if (hide !== hideBox) hide(); });
+      runSearch('');
     }
 
     function selectPerson(p){
@@ -4523,15 +4556,18 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     }
 
     input.addEventListener('focus', function(){
-      openPeoplePickers.forEach(function(hide){ if (hide !== hideBox) hide(); });
       // Always open on the full list, not filtered by whatever name is already sitting in
       // the field - re-searching by the current value here meant re-focusing a field that
       // already had someone picked only ever showed that same person back (nothing else
       // could match), making it look like there was no way to pick someone different.
       // Selecting the text too means the next keystroke replaces it outright, same pattern
       // as the Bank Name searchable dropdown.
-      runSearch('');
+      openFullList();
       input.select();
+    });
+    // A click on a field that already has focus fires no new 'focus' event - open it here.
+    input.addEventListener('click', function(){
+      if (box.hidden) openFullList();
     });
 
     input.addEventListener('input', function(){
@@ -4548,7 +4584,12 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       if (currentResults[idx]) selectPerson(currentResults[idx]);
     });
 
-    input.addEventListener('blur', function(){ setTimeout(hideBox, 150); });
+    input.addEventListener('blur', function(){
+      clearTimeout(blurHideTimer);
+      blurHideTimer = setTimeout(function(){
+        if (document.activeElement !== input) hideBox();
+      }, 150);
+    });
   }
 
   // ---------- Create (Submit Payment Request) ----------
@@ -4735,11 +4776,11 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     // currency OR "Others" picked for an unlisted local bank both count as "foreign" here).
     if (data.bankNameIsForeign) fields.BankNameForeign = data.bankName || '';
     else fields.BankName = data.bankName || '';
-    // Matter numbers can contain letters (confirmed 2026-11-20), so MatterNo must be a
-    // "Single line of text" column on BOTH Master and Details - while it was still a Number
-    // column, any alphabetical matter number failed with Graph 400 badArgument. Sent as
-    // trimmed text (a stray pasted space would otherwise be stored too). Only omitted when
-    // genuinely blank (Office requests).
+    // MatterNo is a "Single line of text" column (confirmed 2026-11-23) and matter numbers
+    // can contain letters. ALWAYS send it as a string: the 2026-11-18 version sent all-digit
+    // matter numbers as a JSON number, which SharePoint stored in this text column as
+    // "2.2682e+007" - truncated to 6 significant digits (items ~97-99 need correcting by hand).
+    // Trimmed so a stray pasted space isn't stored. Omitted only when blank (Office requests).
     var matterNoText = String(data.matterNumber || '').trim();
     if (matterNoText) fields.MatterNo = matterNoText;
     // Dedicated Choice column (values "Matter"/"Office") added specifically so a Staff Claim's
@@ -4779,7 +4820,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
           // Graph's 400 doesn't name the rejected column, so log what was sent and say
           // which step failed - otherwise Master vs Details failures look identical.
           console.error('E-Voucher Master create failed. Fields sent:', fields, err);
-          throw new Error('Saving the request (E-Voucher Master) failed - ' + ((err && err.message) || err));
+          // Values are listed in the message itself (not just the console) so a user's
+          // screenshot is enough to see which value SharePoint refused.
+          throw new Error('Saving the request (E-Voucher Master) failed - ' + ((err && err.message) || err) +
+            ' | Values sent: ' + JSON.stringify(fields));
         });
       });
     }).then(function(created){
@@ -4815,7 +4859,8 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
             }).catch(function(err){
               console.error('E-Voucher Details create failed for line ' + (lineIndex + 1) + '. Fields sent:', detailFields, err);
               throw new Error('Request #' + createdMaster.id + ' was created in E-Voucher Master, but saving line item ' +
-                (lineIndex + 1) + ' (E-Voucher Details) failed - ' + ((err && err.message) || err));
+                (lineIndex + 1) + ' (E-Voucher Details) failed - ' + ((err && err.message) || err) +
+                ' | Values sent: ' + JSON.stringify(detailFields));
             });
           }));
         });
@@ -5321,6 +5366,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     // currently Partner-In-Charge is excluded from this picker's own suggestions.
     setupPeoplePicker({ inputId: 'seniorPartner', hiddenEmailId: 'seniorPartnerEmail', suggestionsId: 'seniorPartnerSuggestions', excludeEmailId: 'partnerInChargeEmail', groupId: GROUP_SENIOR_PARTNERS });
     setupPeoplePicker({ inputId: 'seniorPartner2', hiddenEmailId: 'seniorPartner2Email', suggestionsId: 'seniorPartner2Suggestions', groupId: GROUP_SENIOR_PARTNERS });
+    // Warm the member lists now so the first click on a picker isn't left waiting on Graph.
+    [GROUP_LAWYERS, GROUP_PARTNERS_IN_CHARGE, GROUP_HODS, GROUP_SENIOR_PARTNERS].forEach(function(groupId){
+      fetchGroupMembers(groupId).catch(function(){ /* retried on first use */ });
+    });
   });
 })();
 </script>

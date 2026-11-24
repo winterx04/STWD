@@ -52,7 +52,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.11.24.1';
+  window.__EVOUCHER_VERSION__ = '2026.11.24.2';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -1919,9 +1919,8 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   }
 
   // ---------- Senior Partner / Lawyer-In-Charge routing ----------
-  // Approval matrix (updated 2026-11-20; threshold is RM10,000.00 and above, any payment
-  // method - the old FPX exemption is gone, as the approval flow never honoured it and FPX
-  // requests >= RM10k got stuck waiting for a Senior Partner instead of reaching Finance):
+  // Approval matrix (updated 2026-11-20; threshold is RM10,000.00 and above; FPX payments
+  // are exempt from the threshold-triggered Senior Partner - see updateSeniorPartnerAvailability):
   // Matter Related:        LIC + PIC;            >= RM10k: + 1 Senior Partner.
   // Staff Claim (Matter):  LIC + PIC;            >= RM10k: + 1 Senior Partner.
   // Staff Claim (Office):  HOD + 1 Senior Partner (the "PIC" field, saved to SeniorPartner1);
@@ -1959,10 +1958,19 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var isOffice = nominalType.value === 'office';
     var isHighValue = total >= SENIOR_PARTNER_THRESHOLD;
     var isStaffMatter = nominalType.value === 'staff' && staffSubtype.value !== 'office';
+    // FPX exemption (re-instated 2026-11-24 at the business's request): FPX payments never
+    // need the Senior Partner that the >= RM10k threshold would otherwise add. Office
+    // Related's baseline Senior Partner (needed at any amount) is unaffected. Staff Claims
+    // have no Mode of Payment, so this never applies to them. The approval flow MUST skip the
+    // Senior Partner approval when no Senior Partner is set - otherwise it fails with
+    // InvalidApprovalCreateRequestAssignedToMissing and the request never reaches Accounts
+    // (what happened to ID 81).
+    var isFPX = modeOfPaymentSelect.value.toLowerCase().indexOf('fpx') !== -1;
+    var highValueNeedsSP = isHighValue && !isFPX;
     // Staff Claim (Office)'s first Senior Partner is the relabelled PIC field, so the
     // separate Senior Partner 1 field never shows for it - only Senior Partner 2.
-    var needSP1 = isOffice || ((nominalType.value === 'matter' || isStaffMatter) && isHighValue);
-    var needSP2 = (isOffice || isStaffOfficeClaim()) && isHighValue;
+    var needSP1 = isOffice || ((nominalType.value === 'matter' || isStaffMatter) && highValueNeedsSP);
+    var needSP2 = (isOffice || isStaffOfficeClaim()) && highValueNeedsSP;
     var needLawyer = !isOffice;
 
     partnerInChargeLabel.textContent = partnerInChargeLabelText() + ' *';
@@ -4060,7 +4068,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
      + 1 Senior Partner regardless of amount, and a 2nd ("Senior Partner 2") if also >=
      RM10,000; Staff Claim (Matter) >= RM10,000 adds 1 Senior Partner like Matter Related;
      Staff Claim (Office) is HOD + 1 Senior Partner, and >= RM10,000 a 2nd Senior Partner.
-     No FPX exemption any more, and no RM10,000 cap on Staff Claims. The approval flow must
+     FPX is exempt from the threshold Senior Partner (2026-11-24); no RM10,000 cap on Staff Claims. The approval flow must
      apply the same rules, or requests wait for an approver that was never picked and never
      reach Accounts. See updateSeniorPartnerAvailability in the form's own script block (despite the
      name, it now also toggles Lawyer-In-Charge's visibility/required state) and the

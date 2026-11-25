@@ -52,7 +52,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.11.24.2';
+  window.__EVOUCHER_VERSION__ = '2026.11.25.5';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -1052,7 +1052,16 @@
             <div class="grid-2">
               <div class="field">
                 <label for="payee">Payee *</label>
-                <input type="text" id="payee" required>
+                <!-- Staff Claims only: several staff share one account, so typing/focusing here
+                     shows suggestions from that account's security group (setupPayeePicker) -
+                     click one, or just type any other name, no restriction either way since
+                     Payee is a plain text column, not a Person field. Matter/Office Related
+                     never show the suggestions box; this is a plain text input for them, same
+                     as before. -->
+                <div class="people-picker" id="payeePicker">
+                  <input type="text" id="payee" autocomplete="off" required>
+                  <div class="people-suggestions" id="payeeSuggestions" hidden></div>
+                </div>
               </div>
               <div class="field">
                 <label for="modeOfPayment">Mode Of Payment *</label>
@@ -1217,7 +1226,7 @@
               <input type="file" id="attachment" multiple hidden>
               <i class="fa-solid fa-cloud-arrow-up dropzone-icon"></i>
               <p><span class="link">Browse files</span> or drag them here</p>
-              <p>Invoice, bill, or other supporting documents (max 5MB per file)</p>
+              <p>Invoice, bill, or other supporting documents (max 15MB total)</p>
             </div>
             <p class="hint warning" id="attachmentError" hidden></p>
             <ul class="file-list" id="fileList"></ul>
@@ -2017,7 +2026,13 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   });
 
   staffSubtype.addEventListener('change', function(){
-    updateMatterVisibility(nominalType.value === 'staff' && staffSubtype.value === 'matter');
+    // Must match nominalType's own condition exactly (not just the staff+matter case) -
+    // applyFormData dispatches 'change' on staffSubtype unconditionally after nominalType's,
+    // so for a plain Matter Related record (nominalType === 'matter'), this used to re-hide
+    // the Matter section that nominalType's handler had just correctly shown, since this
+    // narrower check never considered nominalType === 'matter' at all. Affected both Edit &
+    // Resubmit and Copy From An Existing Request for Matter Related requests (found 2026-11-25).
+    updateMatterVisibility(nominalType.value === 'matter' || (nominalType.value === 'staff' && staffSubtype.value === 'matter'));
     recalc();
   });
 
@@ -2163,17 +2178,22 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     updateTracker();
   }
 
-  var MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
+  var MAX_TOTAL_ATTACHMENT_SIZE = 15 * 1024 * 1024;
 
   function addFiles(fileListObj){
-    var rejected = [];
+    var overTotal = [];
+    var runningTotal = files.reduce(function(sum, f){ return sum + f.size; }, 0);
     Array.prototype.forEach.call(fileListObj, function(f){
-      if (f.size > MAX_ATTACHMENT_SIZE) rejected.push(f.name);
-      else files.push(f);
+      if (runningTotal + f.size > MAX_TOTAL_ATTACHMENT_SIZE){
+        overTotal.push(f.name);
+      } else {
+        files.push(f);
+        runningTotal += f.size;
+      }
     });
-    if (rejected.length){
-      attachmentError.textContent = (rejected.length === 1 ? '"' + rejected[0] + '" exceeds' : rejected.length + ' files exceed') +
-        ' the 5MB size limit and ' + (rejected.length === 1 ? 'was' : 'were') + ' not added.';
+    if (overTotal.length){
+      attachmentError.textContent = (overTotal.length === 1 ? '"' + overTotal[0] + '" would push' : overTotal.length + ' files would push') +
+        ' the total attachments size over the 15MB limit and ' + (overTotal.length === 1 ? 'was' : 'were') + ' not added.';
       attachmentError.hidden = false;
     } else {
       attachmentError.hidden = true;
@@ -2428,6 +2448,24 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     hasAttemptedSubmit = false;
     clearInvalidStates();
     hideErrorModal();
+    // A fresh form is never resubmit-locked - only Edit & Resubmit turns this on.
+    isResubmitMode = false;
+    updateResubmitLock();
+  }
+
+  // Edit & Resubmit must not let Request Type (or Matter Number, when matter-applicable) be
+  // changed - the whole point is resubmitting the SAME request's category/matter after fixing
+  // whatever got it rejected, not quietly turning it into a different request. They're shown
+  // (not hidden) with their original value, just greyed out/disabled. Copy From An Existing
+  // Request is the opposite case (explicitly "edit anything"), so it must clear this lock.
+  var isResubmitMode = false;
+  function updateResubmitLock(){
+    nominalType.disabled = isResubmitMode;
+    staffSubtype.disabled = isResubmitMode;
+    var matterLocked = isResubmitMode && !matterSection.hidden;
+    matterNumber.disabled = matterLocked;
+    clientName.disabled = matterLocked;
+    matterDescription.disabled = matterLocked;
   }
 
   resetBtn.addEventListener('click', function(){
@@ -3670,7 +3708,11 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       cloned.lineItems = (cloned.lineItems || []).map(function(li){
         return { description: li.description, invoice: li.invoice, amount: 0 };
       });
+      // Copy From An Existing Request explicitly allows "edit anything" - clear any
+      // Edit & Resubmit lock still in effect from a previous action in this same session.
+      isResubmitMode = false;
       applyFormData(cloned);
+      updateResubmitLock();
       copyFromIdInput.value = '';
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }).catch(function(err){
@@ -3686,6 +3728,11 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var reqItem = SUBMITTED_REQUESTS[currentDetailsIdx];
     if (!reqItem || !reqItem.formData) return;
     applyFormData(reqItem.formData);
+    // Request Type (and Matter Number, if matter-applicable) can't be changed on a
+    // resubmission - lock them AFTER applyFormData so its own cascading dispatches don't
+    // re-enable anything on the way through.
+    isResubmitMode = true;
+    updateResubmitLock();
     // Say up front that this replaces the rejected request, so approvers can tell (2026-11-24).
     document.getElementById('submitterRemarks').value = 'Resubmission of rejected request ID ' + reqItem.ref + '. ';
     // Edit & Resubmit already loads this exact request's data - surfacing its own ID in the
@@ -4390,6 +4437,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var GROUP_LAWYERS = '0894bbf8-4f1b-4b01-aa26-63491a367976';
   var GROUP_PARTNERS_IN_CHARGE = '6198d67e-379e-4717-9390-43ed4b135201';
   var GROUP_SENIOR_PARTNERS = '71257bdf-677b-40e1-9a07-81fad20d0a2c';
+  // Payee suggestions for Staff Claims (several staff can share one account) - see
+  // setupPayeePicker below. Unlike the four groups above, Payee is a plain text column, not a
+  // Person field, so any typed name is valid whether or not it matches a suggestion.
+  var GROUP_PAYEE = 'e0c7d99e-f795-40a2-8192-60b40e49fa71';
   // Who sees the Accounts Approval view (see checkCurrentUserIsApprover): members of any group
   // in GROUP_ACC, plus any account listed in ACC_EMAILS. For now GROUP_ACC is all four approver
   // groups - swap in a dedicated Accounts group's Object ID once one exists in Entra ID.
@@ -4481,9 +4532,14 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
   var openPeoplePickers = [];
 
-  // config: { inputId, suggestionsId, hiddenEmailId, excludeEmailId, groupId, getGroupId }
+  // config: { inputId, suggestionsId, hiddenEmailId, excludeEmailId, groupId, getGroupId, isActive }
   // Either groupId (fixed) or getGroupId() (a function, re-evaluated on every search - for a
   // field whose applicable role/group changes with the request type) must be given.
+  // isActive() is optional - when given and it returns false, the picker never opens at all
+  // (e.g. Payee only suggests names for Staff Claims; for other types it's a plain text
+  // field). hiddenEmailId is also optional - omitting it (as Payee does) makes this picker a
+  // suggestions-only convenience with no "must resolve to a real person" requirement, since
+  // every `if (hiddenEmail)` below already degrades cleanly to a no-op in that case.
   function setupPeoplePicker(config){
     var input = document.getElementById(config.inputId);
     var box = document.getElementById(config.suggestionsId);
@@ -4580,7 +4636,12 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       input.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
+    function isPickerActive(){
+      return typeof config.isActive !== 'function' || config.isActive();
+    }
+
     input.addEventListener('focus', function(){
+      if (!isPickerActive()) return;
       // Always open on the full list, not filtered by whatever name is already sitting in
       // the field - re-searching by the current value here meant re-focusing a field that
       // already had someone picked only ever showed that same person back (nothing else
@@ -4592,11 +4653,12 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     });
     // A click on a field that already has focus fires no new 'focus' event - open it here.
     input.addEventListener('click', function(){
-      if (box.hidden) openFullList();
+      if (isPickerActive() && box.hidden) openFullList();
     });
 
     input.addEventListener('input', function(){
       if (hiddenEmail) hiddenEmail.value = '';
+      if (!isPickerActive()) return;
       var query = input.value.trim();
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(function(){ runSearch(query); }, 300);
@@ -5395,8 +5457,14 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     // currently Partner-In-Charge is excluded from this picker's own suggestions.
     setupPeoplePicker({ inputId: 'seniorPartner', hiddenEmailId: 'seniorPartnerEmail', suggestionsId: 'seniorPartnerSuggestions', excludeEmailId: 'partnerInChargeEmail', groupId: GROUP_SENIOR_PARTNERS });
     setupPeoplePicker({ inputId: 'seniorPartner2', hiddenEmailId: 'seniorPartner2Email', suggestionsId: 'seniorPartner2Suggestions', groupId: GROUP_SENIOR_PARTNERS });
+    // Payee (Staff Claims only) - no hiddenEmailId, so any typed name is accepted as-is;
+    // suggestions are purely a convenience for the shared-account case.
+    setupPeoplePicker({
+      inputId: 'payee', suggestionsId: 'payeeSuggestions', groupId: GROUP_PAYEE,
+      isActive: function(){ return document.getElementById('nominalType').value === 'staff'; }
+    });
     // Warm the member lists now so the first click on a picker isn't left waiting on Graph.
-    [GROUP_LAWYERS, GROUP_PARTNERS_IN_CHARGE, GROUP_HODS, GROUP_SENIOR_PARTNERS].forEach(function(groupId){
+    [GROUP_LAWYERS, GROUP_PARTNERS_IN_CHARGE, GROUP_HODS, GROUP_SENIOR_PARTNERS, GROUP_PAYEE].forEach(function(groupId){
       fetchGroupMembers(groupId).catch(function(){ /* retried on first use */ });
     });
   });

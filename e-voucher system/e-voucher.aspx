@@ -52,7 +52,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.11.26.4';
+  window.__EVOUCHER_VERSION__ = '2026.11.27.3';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -759,17 +759,26 @@
   .reimb-type-menu li[data-code]:hover,.reimb-type-menu li.active{background:var(--primary-light);color:var(--primary-dark);}
   .reimb-type-menu li strong{color:var(--primary-dark);}
   .reimb-type-menu li.reimb-type-empty{color:var(--text-muted);font-weight:500;cursor:default;}
-  #view-reimbursement .type-pill{min-width:112px;text-align:center;}
+  #view-reimbursement .type-pill{text-align:center;}
   /* Desktop list: short columns hug their content on one line; Item Description (5th) and
-     Payee (6th) share the remaining width. The mobile card layout below 761px is untouched. */
+     Payee (6th) share the remaining width and break long words, and Date (7th) wraps onto two
+     lines, so all columns fit the card without a horizontal scrollbar. The mobile card layout
+     below 761px is untouched. */
   @media (min-width:761px){
-    #view-reimbursement .requests-table td{vertical-align:middle;}
+    #view-reimbursement .requests-table thead th{padding:10px 8px;}
+    #view-reimbursement .requests-table tbody td{padding:10px 8px;vertical-align:middle;}
     #view-reimbursement .requests-table th:not(:nth-child(5)):not(:nth-child(6)),
     #view-reimbursement .requests-table td:not(:nth-child(5)):not(:nth-child(6)){width:1%;white-space:nowrap;}
     #view-reimbursement .requests-table th:nth-child(8),
     #view-reimbursement .requests-table td:nth-child(8){text-align:right;}
+    #view-reimbursement .requests-table td:nth-child(5),
+    #view-reimbursement .requests-table td:nth-child(6){overflow-wrap:anywhere;}
+    #view-reimbursement .requests-table th:nth-child(5){width:45%;}
+    #view-reimbursement .requests-table th:nth-child(6){width:22%;}
     #view-reimbursement .requests-table td:nth-child(6){min-width:140px;}
   }
+  /* Reimbursement list: date on the first line, time on the second (see dateTimeLinesHtml). */
+  .date-lines > span{display:block;white-space:nowrap;}
 
   .empty-state{
     text-align:center;padding:40px 20px;color:var(--text-muted);font-size:13.5px;
@@ -2657,6 +2666,16 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   var accountsRemarksError = document.getElementById('accountsRemarksError');
   var currentDetailsIdx = -1;
 
+  // "26 Nov 2026, 06:06 pm" -> date and time on two lines, for the Reimbursement list. Falls
+  // back to the whole text on one line if it isn't in that "date, time" shape.
+  function dateTimeLinesHtml(dateText){
+    var text = String(dateText || '');
+    var split = text.lastIndexOf(', ');
+    if (split === -1) return escapeHtml(text);
+    return '<span class="date-lines"><span>' + escapeHtml(text.slice(0, split)) + '</span>' +
+      '<span>' + escapeHtml(text.slice(split + 2)) + '</span></span>';
+  }
+
   function requestRowHtml(reqItem, idx){
     var meta = STATUS_META[reqItem.status];
     return '<tr>' +
@@ -3129,11 +3148,19 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       TYPE_LABELS[reqItem.type] || reqItem.type,
       String(row.item.matterNo || (reqItem.formData && reqItem.formData.matterNumber) || ''),
       row.item.description,
+      row.item.invoice || '',
       reqItem.currency + ' ' + formatMoney(row.item.amount),
       reqItem.payee,
       reqItem.date
     ].join(' ').toLowerCase();
     return haystack.indexOf(reimbursementSearchQuery) !== -1;
+  }
+
+  // Item description as shown on the Reimbursement page and written to the Excel export:
+  // "<description> [EVID: <invoice no>]". Left as-is when the item has no invoice number.
+  function descriptionWithEvid(description, invoice){
+    var invoiceNo = String(invoice || '').trim();
+    return (description || '') + (invoiceNo ? ' [EVID: ' + invoiceNo + ']' : '');
   }
 
   function selectedReimbursementRows(){
@@ -3149,9 +3176,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       '<td data-label="ID"><span class="ref-chip">' + escapeHtml(reqItem.ref) + '</span></td>' +
       '<td data-label="Type"><span class="type-pill ' + escapeHtml(reqItem.type) + '">' + escapeHtml(TYPE_LABELS[reqItem.type] || reqItem.type) + '</span></td>' +
       '<td data-label="Matter No">' + escapeHtml(matterNo) + '</td>' +
-      '<td data-label="Item Description">' + escapeHtml(item.description || '-') + '</td>' +
+      '<td data-label="Item Description">' + escapeHtml(descriptionWithEvid(item.description, item.invoice) || '-') + '</td>' +
       '<td data-label="Payee">' + escapeHtml(reqItem.payee) + '</td>' +
-      '<td data-label="Date">' + escapeHtml(reqItem.date) + '</td>' +
+      '<td data-label="Date">' + dateTimeLinesHtml(reqItem.date) + '</td>' +
       '<td data-label="Amount">' + escapeHtml(reqItem.currency) + ' ' + formatMoney(item.amount) + '</td>' +
       '<td><button type="button" class="btn btn-outline btn-sm btn-view-row reimb-view-btn" data-idx="' + row.reqIdx + '"><i class="fa-solid fa-eye"></i> View</button></td>' +
       '</tr>';
@@ -3246,6 +3273,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         payee: reqItem.payee || '',
         typeCode: '',
         description: row.item.description || '',
+        // Shown in the popup and written to the Excel file; description above stays the raw
+        // text for SharePoint error messages.
+        exportDescription: descriptionWithEvid(row.item.description, row.item.invoice),
         amount: amount,
         currency: reqItem.currency,
         isMyr: isMyr,
@@ -3322,7 +3352,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       return payeeRow + '<tr>' +
         groupCells +
         '<td class="reimb-type-cell"><input type="text" class="reimb-type-input" data-line="' + i + '" autocomplete="off" maxlength="20" value="' + escapeHtml(line.typeCode) + '" aria-label="Type for item ' + (i + 1) + '"></td>' +
-        '<td>' + escapeHtml(line.description || '-') + '</td>' +
+        '<td>' + escapeHtml(line.exportDescription || '-') + '</td>' +
         originalCell +
         rmCell +
         '</tr>';
@@ -3570,7 +3600,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       function buildBook(lines){
         // No header row - columns are Matter No / Type / Amount / Item Description.
         var rows = lines.map(function(line){
-          return [line.matterNo || '', line.typeCode, line.amountRm, line.description];
+          return [line.matterNo || '', line.typeCode, line.amountRm, line.exportDescription];
         });
         var sheet = XLSX.utils.aoa_to_sheet(rows);
         // Amount stays a real number (so it still sums in Excel) but always displays 2 decimals.

@@ -52,7 +52,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.11.25.5';
+  window.__EVOUCHER_VERSION__ = '2026.11.26.2';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -551,6 +551,19 @@
   .people-suggestion:hover,.people-suggestion.active{background:var(--bg);}
   .people-suggestion .p-name{font:inherit;color:inherit;}
   .people-suggestions .p-status{padding:10px 12px;font-size:12.5px;color:var(--text-muted);}
+  /* CC: several people, each a removable tag above the search box. */
+  .cc-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;}
+  .cc-chips:empty{display:none;}
+  .cc-chip{
+    display:inline-flex;align-items:center;gap:6px;
+    background:var(--primary-light);color:var(--navy);
+    border-radius:999px;padding:4px 6px 4px 12px;font-size:13px;
+  }
+  .cc-chip button{
+    background:none;border:none;cursor:pointer;color:var(--navy);
+    width:20px;height:20px;border-radius:50%;line-height:1;font-size:14px;
+  }
+  .cc-chip button:hover{background:rgba(0,0,0,.08);}
   .dropzone .link{color:var(--primary);font-weight:600;text-decoration:underline;}
 
   .file-list{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:8px;}
@@ -1175,6 +1188,17 @@
                   <i class="fa-solid fa-chevron-down people-picker-caret"></i>
                   <div class="people-suggestions" id="seniorPartner2Suggestions" hidden></div>
                 </div>
+              </div>
+            </div>
+            <!-- CC (2026-11-26): optional, several people from the "All users" group. Saved to
+                 Master's multi-person "CC" column - see spSubmitRequest. -->
+            <div class="field" id="ccField" style="margin-top:4px;">
+              <label for="ccInput">CC</label>
+              <div class="cc-chips" id="ccChips"></div>
+              <div class="people-picker" id="ccPicker">
+                <input type="text" id="ccInput" autocomplete="off" spellcheck="false" placeholder="Optional - click or type to add people...">
+                <i class="fa-solid fa-chevron-down people-picker-caret"></i>
+                <div class="people-suggestions" id="ccSuggestions" hidden></div>
               </div>
             </div>
           </section>
@@ -2412,14 +2436,49 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       currency: document.getElementById('currency').value,
       totalAmount: totalAmountField.value,
       remarks: document.getElementById('submitterRemarks').value.trim(),
+      cc: ccPeople.slice(),
       fileNames: files.map(function(f){ return f.name; })
     };
   }
+
+  // ---------- CC (several people, 2026-11-26) ----------
+  // Kept as a list of { name, email } and drawn as removable tags. The picker itself is set up
+  // in the SharePoint script block (it needs the "All users" group's members) and adds people
+  // through window.__evoucherAddCc; spSubmitRequest resolves the emails to SharePoint users.
+  var ccPeople = [];
+  var ccChips = document.getElementById('ccChips');
+  function renderCcChips(){
+    ccChips.innerHTML = ccPeople.map(function(p, i){
+      return '<span class="cc-chip">' + escapeHtml(p.name || p.email) +
+        '<button type="button" data-cc-idx="' + i + '" title="Remove" aria-label="Remove ' + escapeHtml(p.name || p.email) + '">&times;</button></span>';
+    }).join('');
+  }
+  function setCcPeople(list){
+    ccPeople = (list || []).filter(function(p){ return p && p.email; }).map(function(p){ return { name: p.name || '', email: p.email }; });
+    renderCcChips();
+  }
+  ccChips.addEventListener('click', function(e){
+    var btn = e.target.closest('button[data-cc-idx]');
+    if (!btn) return;
+    ccPeople.splice(parseInt(btn.getAttribute('data-cc-idx'), 10), 1);
+    renderCcChips();
+  });
+  window.__evoucherAddCc = function(person){
+    if (!person || !person.email) return;
+    var email = person.email.toLowerCase();
+    if (ccPeople.some(function(p){ return p.email.toLowerCase() === email; })) return;
+    ccPeople.push({ name: person.name || '', email: person.email });
+    renderCcChips();
+  };
+  window.__evoucherGetCcEmails = function(){
+    return ccPeople.map(function(p){ return p.email.toLowerCase(); });
+  };
 
   // Shared by the Reset button and by a successful submit (below) - pulled out so both go
   // through the exact same cleanup rather than the two drifting apart over time.
   function resetForm(){
     form.reset();
+    setCcPeople([]);
     // form.reset() puts the real <select>s back to their blank default but doesn't fire
     // 'change' - the visible custom dropdown (cst-trigger/cst-search-input, a separate
     // element layered over the real <select>, see enhanceSelect/enhanceSelectSearchable)
@@ -2876,6 +2935,9 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     // Submitter's own remarks (e.g. "Resubmission of rejected request ID 123") - only shown
     // when there are some, since most requests won't have any.
     if (reqItem.submitterRemarks) overviewRows.push(['Remarks', reqItem.submitterRemarks]);
+    if (reqItem.cc && reqItem.cc.length){
+      overviewRows.push(['CC', reqItem.cc.map(function(p){ return p.name || p.email; }).join(', ')]);
+    }
     // Staff Claim category (Matter vs Office) isn't its own SharePoint column - it's folded
     // into the RequestType Choice text itself (see inferTypeFromText/requestTypeForSharePoint),
     // so it's otherwise invisible here unless called out as its own row.
@@ -3648,6 +3710,8 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     // Only a saved draft carries remarks; formData read back from SharePoint deliberately
     // doesn't, so Copy From / Edit & Resubmit start from a blank Remarks box.
     document.getElementById('submitterRemarks').value = data.remarks || '';
+    // CC carries over on Copy From / Edit & Resubmit / a restored draft.
+    setCcPeople(data.cc || []);
   }
 
   // ---------- Draft kept across a same-tab sign-in ----------
@@ -4141,8 +4205,8 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
      Accounts Approval (2026-10-10): a built-in final-stage review screen, gated by
      checkCurrentUserIsApprover (checks the signed-in account's email against ACC_EMAILS and
-     the groups in GROUP_ACC - for now all four approver groups plus vouchers@stwd.com.my,
-     2026-11-04, until a dedicated Accounts group exists). A request appears there
+     the groups in GROUP_ACC - the Finance and IT groups plus vouchers@stwd.com.my since
+     2026-11-26; before that it was all four approver groups). A request appears there
      whenever its AccountsStatus is exactly "Pending" in
      SharePoint (see readyForAccounts in spFetchRequests - the approval flow sets that once
      the earlier stages are done; changed 2026-10-24). "Mark Complete"/"Reject"
@@ -4441,21 +4505,46 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   // setupPayeePicker below. Unlike the four groups above, Payee is a plain text column, not a
   // Person field, so any typed name is valid whether or not it matches a suggestion.
   var GROUP_PAYEE = 'e0c7d99e-f795-40a2-8192-60b40e49fa71';
-  // Who sees the Accounts Approval view (see checkCurrentUserIsApprover): members of any group
-  // in GROUP_ACC, plus any account listed in ACC_EMAILS. For now GROUP_ACC is all four approver
-  // groups - swap in a dedicated Accounts group's Object ID once one exists in Entra ID.
-  var GROUP_ACC = [GROUP_HODS, GROUP_LAWYERS, GROUP_PARTNERS_IN_CHARGE, GROUP_SENIOR_PARTNERS];
+  // The Finance and IT groups (IT1/Finance1 - mail-enabled groups, so this is a real
+  // membership check, not an email match).
+  var GROUP_FINANCE_AND_IT = ['863ef2d2-4b37-4e2f-a8d8-b1edb4e27146', 'dc5cf115-0a4a-4d48-9042-73715cecc08e'];
+  // Who sees the Accounts Approval and Reimbursement views (see checkCurrentUserIsApprover):
+  // Finance and IT only, plus any account listed in ACC_EMAILS. Until 2026-11-26 this was all
+  // four approver groups (a stopgap), which let Lawyers/Partners/HODs into the finance pages.
+  var GROUP_ACC = GROUP_FINANCE_AND_IT;
   var ACC_EMAILS = ['vouchers@stwd.com.my'];
   // Who can see every submitter's requests on View Requests, not just their own (see
-  // checkCurrentUserCanViewAllRequests/window.__canViewAllRequests) - both are mail-enabled
-  // groups, not individual mailboxes, so this is a real membership check, not an email match.
-  var GROUP_VIEW_ALL = ['863ef2d2-4b37-4e2f-a8d8-b1edb4e27146', 'dc5cf115-0a4a-4d48-9042-73715cecc08e'];
+  // checkCurrentUserCanViewAllRequests/window.__canViewAllRequests).
+  var GROUP_VIEW_ALL = GROUP_FINANCE_AND_IT;
   var groupMembersPromises = {};
+
+  // CC's options come from the Entra group named "All users" (2026-11-26). It's looked up by
+  // display name rather than hard-coding its Object ID - GroupMember.Read.All already allows
+  // listing groups. If that group is ever renamed, put its Object ID here instead of the name.
+  var GROUP_ALL_USERS_NAME = 'All users';
+  var GROUP_ALL_USERS = 'name:' + GROUP_ALL_USERS_NAME;
+  function resolveGroupId(groupId, headers){
+    if (groupId.indexOf('name:') !== 0) return Promise.resolve(groupId);
+    var name = groupId.slice(5).replace(/'/g, "''");
+    return fetch(GRAPH_BASE + "/groups?$filter=" + encodeURIComponent("displayName eq '" + name + "'") + '&$select=id,displayName', { headers: headers })
+      .then(function(res){
+        if (!res.ok) return res.text().then(function(t){ throw new Error('Group lookup failed (' + res.status + '): ' + t); });
+        return res.json();
+      }).then(function(result){
+        var group = result.value && result.value[0];
+        if (!group) throw new Error('No group named "' + groupId.slice(5) + '" was found.');
+        return group.id;
+      });
+  }
 
   function fetchGroupMembers(groupId){
     if (groupMembersPromises[groupId]) return groupMembersPromises[groupId];
     var promise = window.getGraphToken(['GroupMember.Read.All', 'User.ReadBasic.All']).then(function(token){
       var headers = { 'Authorization': 'Bearer ' + token.accessToken };
+      return resolveGroupId(groupId, headers).then(function(id){ return { headers: headers, id: id }; });
+    }).then(function(ctx){
+      var headers = ctx.headers;
+      var resolvedGroupId = ctx.id; // groupId itself stays the cache key (may be "name:...")
       function fetchPage(url, acc){
         return fetch(url, { headers: headers }).then(function(res){
           if (!res.ok) return res.text().then(function(t){ throw new Error('Group members fetch failed (' + res.status + '): ' + t); });
@@ -4469,7 +4558,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       // groups/devices) - casting to /microsoft.graph.user both filters to actual people
       // and is required for $select to accept user-only properties like mail/UPN without
       // erroring.
-      return fetchPage(GRAPH_BASE + '/groups/' + groupId + '/members/microsoft.graph.user?$select=id,displayName,mail,userPrincipalName&$top=999', []);
+      return fetchPage(GRAPH_BASE + '/groups/' + resolvedGroupId + '/members/microsoft.graph.user?$select=id,displayName,mail,userPrincipalName&$top=999', []);
     }).then(function(members){
       // Graph returns members in arbitrary (effectively random) order, not alphabetical -
       // sort once here so every picker's suggestion list is consistently A-Z.
@@ -4594,6 +4683,11 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         // Partner 1 can't be the same person as Partner-In-Charge) - read that other field's
         // live value each time rather than a fixed email, so it stays correct as that other
         // field changes.
+        // Multi-pick fields (CC) hide whoever is already picked.
+        if (typeof config.excludeEmails === 'function'){
+          var picked = config.excludeEmails() || [];
+          if (picked.length) people = people.filter(function(p){ return picked.indexOf((personEmail(p) || '').toLowerCase()) === -1; });
+        }
         if (config.excludeEmailId){
           var excludeEmailEl = document.getElementById(config.excludeEmailId);
           var excludeEmail = ((excludeEmailEl && excludeEmailEl.value) || '').toLowerCase();
@@ -4618,6 +4712,19 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     }
 
     function selectPerson(p){
+      // Multi-pick (CC): hand the person over, empty the box and keep the list open for the
+      // next name, rather than writing one name into the field.
+      if (typeof config.onSelect === 'function'){
+        config.onSelect({ name: p.displayName || '', email: personEmail(p) });
+        input.value = '';
+        clearTimeout(debounceTimer);
+        // Clicking a suggestion moves focus off the box; re-focusing reopens the full list
+        // (the focus handler does that), or refresh it directly if focus never left.
+        setTimeout(function(){
+          if (document.activeElement === input) runSearch(''); else input.focus();
+        }, 0);
+        return;
+      }
       input.value = p.displayName || '';
       hideBox();
       // Fire 'input' BEFORE setting hiddenEmail, not after - the input listener above
@@ -4685,6 +4792,32 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     // classic SharePoint REST API instead - which needs its own resource permission (e.g. "AllSites.Write"
     // under the SharePoint API, separate from the Graph permissions already granted) plus admin consent.
     return window.getGraphToken(['https://' + SP_HOSTNAME + '/AllSites.Write']);
+  }
+
+  // CC is a multi-person column. Graph usually returns it as "CC": [{ LookupId, LookupValue,
+  // Email }], but may instead give only "CCLookupId": ["7", ...] - handle both. Ids without a
+  // name are resolved like the single-person columns (getSpUserById, via userById).
+  function ccLookupIds(f){
+    var ids = [];
+    if (Array.isArray(f.CC)) f.CC.forEach(function(u){ if (u && u.LookupId != null && !u.LookupValue) ids.push(String(u.LookupId)); });
+    else if (Array.isArray(f.CCLookupId)) f.CCLookupId.forEach(function(id){ if (id != null) ids.push(String(id)); });
+    return ids;
+  }
+  function ccPeopleFromFields(f, userById){
+    var list = [];
+    if (Array.isArray(f.CC)){
+      f.CC.forEach(function(u){
+        if (!u) return;
+        var resolved = userById[String(u.LookupId)] || {};
+        list.push({ name: u.LookupValue || resolved.displayName || '', email: u.Email || resolved.email || '' });
+      });
+    } else if (Array.isArray(f.CCLookupId)){
+      f.CCLookupId.forEach(function(id){
+        var resolved = userById[String(id)] || {};
+        list.push({ name: resolved.displayName || '', email: resolved.email || '' });
+      });
+    }
+    return list.filter(function(p){ return p.name || p.email; });
   }
 
   // Graph's $expand=fields never resolves Person/Group columns into a name/email - it only
@@ -4900,6 +5033,24 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       }
       if (ids[2]) fields.SeniorPartner1LookupId = ids[2];
       if (ids[3]) fields.SeniorPartner2LookupId = ids[3];
+      // CC (2026-11-26): Master's "CC" Person column with "Allow multiple selections" on.
+      // Graph takes a multi-person field as an array of SharePoint user ids (as strings) plus
+      // an explicit Collection(Edm.String) type annotation. Only sent when someone was CC'd.
+      var ccList = data.cc || [];
+      if (!ccList.length) return null;
+      return Promise.all(ccList.map(function(p){
+        return ensureSpUser(p.email).catch(function(err){
+          console.warn('Could not resolve CC ' + p.email + ' as a SharePoint user - left out.', err);
+          return null;
+        });
+      })).then(function(ccIds){
+        ccIds = ccIds.filter(function(id){ return id; });
+        if (ccIds.length){
+          fields['CCLookupId@odata.type'] = 'Collection(Edm.String)';
+          fields.CCLookupId = ccIds.map(String);
+        }
+      });
+    }).then(function(){
       return getSpListId(SP_MASTER_LIST_NAME);
     }).then(function(masterListId){
       return getSpSiteId().then(function(siteId){
@@ -5029,6 +5180,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         [f.LawyerInChargeLookupId, f.PartnerInChargeLookupId, f.HeadOfDepartmentLookupId, f.SeniorPartner1LookupId, f.SeniorPartner2LookupId, f.AccountsLookupId, f.AuthorLookupId].forEach(function(id){
           if (id) neededIds[id] = true;
         });
+        ccLookupIds(f).forEach(function(id){ neededIds[id] = true; });
       });
       return Promise.all(Object.keys(neededIds).map(function(id){
         return getSpUserById(id).then(function(info){ return { id: id, info: info }; });
@@ -5116,6 +5268,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
             seniorPartner2Remarks: f.SeniorPartner2Remarks || '',
             accountsRemarks: f.AccountsRemarks || '',
             submitterRemarks: f.SubmitterRemarks || '',
+            cc: ccPeopleFromFields(f, userById),
             attachments: attachmentsByMasterId[row.id] || [],
             formData: {
               nominalType: typeInfo.nominalType,
@@ -5123,6 +5276,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
               matterNumber: f.MatterNo || '',
               clientName: f.ClientName || '',
               matterDescription: f.MatterDescription || '',
+              cc: ccPeopleFromFields(f, userById),
               payee: f.Payee || '',
               modeOfPayment: f.ModeOfPayment || '',
               bankName: bankNameValue,
@@ -5457,6 +5611,12 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     // currently Partner-In-Charge is excluded from this picker's own suggestions.
     setupPeoplePicker({ inputId: 'seniorPartner', hiddenEmailId: 'seniorPartnerEmail', suggestionsId: 'seniorPartnerSuggestions', excludeEmailId: 'partnerInChargeEmail', groupId: GROUP_SENIOR_PARTNERS });
     setupPeoplePicker({ inputId: 'seniorPartner2', hiddenEmailId: 'seniorPartner2Email', suggestionsId: 'seniorPartner2Suggestions', groupId: GROUP_SENIOR_PARTNERS });
+    // CC: several people from the "All users" group, each added as a tag (see window.__evoucherAddCc).
+    setupPeoplePicker({
+      inputId: 'ccInput', suggestionsId: 'ccSuggestions', groupId: GROUP_ALL_USERS,
+      onSelect: function(person){ window.__evoucherAddCc(person); },
+      excludeEmails: function(){ return window.__evoucherGetCcEmails ? window.__evoucherGetCcEmails() : []; }
+    });
     // Payee (Staff Claims only) - no hiddenEmailId, so any typed name is accepted as-is;
     // suggestions are purely a convenience for the shared-account case.
     setupPeoplePicker({

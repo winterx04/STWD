@@ -52,7 +52,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.11.26.2';
+  window.__EVOUCHER_VERSION__ = '2026.11.26.4';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -592,8 +592,10 @@
     font-size:11.5px;font-weight:700;white-space:nowrap;
   }
   .status-badge.pending{background:var(--primary-light);color:var(--primary-dark);}
+  .status-badge.timed-out{background:var(--danger);color:#fff;}
   .status-badge.approved{background:#e3f5ea;color:var(--success);}
   .status-badge.rejected{background:var(--danger-bg);color:var(--danger);}
+  .status-badge.neutral{background:#1a1f29;color:#fff;}
 
   .btn-sm{padding:6px 14px;font-size:12.5px;}
 
@@ -2585,10 +2587,11 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   // Lawyer/Partner/Accounts stage statuses (those are shown separately in the details modal).
   var STATUS_META = {
     'pending': { label: 'Pending', cls: 'pending', icon: 'fa-clock' },
-    'timed-out': { label: 'Timed Out', cls: 'pending', icon: 'fa-triangle-exclamation' },
+    'timed-out': { label: 'Timed Out', cls: 'timed-out', icon: 'fa-triangle-exclamation' },
     'approved': { label: 'Approved', cls: 'approved', icon: 'fa-circle-check' },
     'completed': { label: 'Completed', cls: 'approved', icon: 'fa-check-double' },
-    'rejected': { label: 'Rejected', cls: 'rejected', icon: 'fa-circle-xmark' }
+    'rejected': { label: 'Rejected', cls: 'rejected', icon: 'fa-circle-xmark' },
+    'not-applicable': { label: 'Not Applicable', cls: 'neutral', icon: 'fa-circle-minus' }
   };
   var PENDING_STATUSES = ['pending', 'timed-out'];
 
@@ -4360,11 +4363,14 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     if (lc.indexOf('reject') !== -1 || lc.indexOf('declin') !== -1) return 'rejected';
     if (lc.indexOf('complet') !== -1) return 'completed';
     // "Not Applicable" (a real PartnerStatus choice, e.g. requests below a threshold that
-    // don't need partner sign-off) is a non-issue, same as an actual approval. "Verified" is
-    // the Lawyer stage's own choice text for the same outcome (that stage verifies, it
-    // doesn't approve - see lawyerStatusDisplay) - without this it fell through to the
-    // default 'pending' bucket and rendered orange even once verification was done.
-    if (lc.indexOf('approv') !== -1 || lc.indexOf('not applicable') !== -1 || lc.indexOf('verif') !== -1) return 'approved';
+    // don't need partner sign-off) is a non-issue, same as an actual approval, but its own
+    // distinct grey/neutral badge - rendering it the same green as a genuine approval was
+    // confusing (reported 2026-11-26). "Verified" is the Lawyer stage's own choice text for
+    // a non-issue outcome too (that stage verifies, it doesn't approve - see
+    // lawyerStatusDisplay) - without this it fell through to the default 'pending' bucket and
+    // rendered orange even once verification was done.
+    if (lc.indexOf('not applicable') !== -1) return 'not-applicable';
+    if (lc.indexOf('approv') !== -1 || lc.indexOf('verif') !== -1) return 'approved';
     if (lc.indexOf('timed out') !== -1 || lc.indexOf('timeout') !== -1) return 'timed-out';
     return 'pending';
   }
@@ -5203,10 +5209,15 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
           // Status itself was observed staying "Pending" - confirmed 2026-10-15). A
           // rejection at ANY stage is unambiguous, so it overrides whatever Status says
           // rather than waiting on that external process to catch up.
-          var anyStageRejected = [f.LawyerStatus, f.HeadOfDepartmentStatus, f.PartnerStatus, f.SeniorPartner1Status, f.SeniorPartner2Status, f.AccountsStatus].some(function(s){
-            return classifyApprovalStatus(s) === 'rejected';
-          });
-          var status = anyStageRejected ? 'rejected' : classifyApprovalStatus(f.Status);          // Prefer BankNameForeign over BankName whenever it actually has a value, rather than
+          var stageStatusValues = [f.LawyerStatus, f.HeadOfDepartmentStatus, f.PartnerStatus, f.SeniorPartner1Status, f.SeniorPartner2Status, f.AccountsStatus];
+          var anyStageRejected = stageStatusValues.some(function(s){ return classifyApprovalStatus(s) === 'rejected'; });
+          // Same reasoning as the rejection override above - Master's own Status field was
+          // observed staying "Pending" even when an individual stage had genuinely timed out
+          // (the details modal correctly showed "Timed Out" for that stage, but View Requests
+          // still listed the whole thing as Pending - reported 2026-11-26).
+          var anyStageTimedOut = stageStatusValues.some(function(s){ return classifyApprovalStatus(s) === 'timed-out'; });
+          var status = anyStageRejected ? 'rejected' : anyStageTimedOut ? 'timed-out' : classifyApprovalStatus(f.Status);
+          // Prefer BankNameForeign over BankName whenever it actually has a value, rather than
           // deciding purely off Currency - an MYR request can also have its bank name there
           // now, if "Others" was picked for a bank that isn't in the BankName Choice list.
           var bankNameIsForeign = !!f.BankNameForeign;

@@ -52,7 +52,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.11.27.3';
+  window.__EVOUCHER_VERSION__ = '2026.11.28.2';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -1871,13 +1871,19 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     return n.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
-  var DESC_MAX_LENGTH = 200;
+  // The Reimbursement export writes "<description> [EVID: <invoice/ref no>]" and must stay
+  // within EXPORT_DESC_MAX_LENGTH (2026-11-28). Description is capped at 185; Invoice/Ref No.
+  // (the EVID) has no limit, so when description + " [EVID: ...]" runs over 200,
+  // descriptionWithEvid trims the end of the description to fit (option agreed with the business).
+  var DESC_MAX_LENGTH = 185;
+  var EXPORT_DESC_MAX_LENGTH = 200;
 
-  function descCounterHtml(len){
-    var atLimit = len >= DESC_MAX_LENGTH;
-    return '<div class="char-count' + (atLimit ? ' char-count-limit' : '') + '">' +
-      (atLimit ? 'Maximum ' + DESC_MAX_LENGTH + ' characters reached' : len + '/' + DESC_MAX_LENGTH) +
-      '</div>';
+  function charCounterHtml(len, max){
+    var cls = len >= max ? ' char-count-limit' : '';
+    var text = len > max ? (len + '/' + max + ' - over the limit by ' + (len - max))
+      : len === max ? 'Maximum ' + max + ' characters reached'
+      : len + '/' + max;
+    return '<div class="char-count' + cls + '">' + text + '</div>';
   }
 
   function createRow(data){
@@ -1886,8 +1892,8 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     var tr = document.createElement('tr');
     tr.dataset.rowId = rowCounter;
     tr.innerHTML =
-      '<td><textarea class="desc-input" maxlength="200" placeholder="Payment Description" rows="2">' + (data.description ? escapeHtml(data.description) : '') + '</textarea>' +
-      descCounterHtml(data.description ? data.description.length : 0) + '</td>' +
+      '<td><textarea class="desc-input" maxlength="' + DESC_MAX_LENGTH + '" placeholder="Payment Description" rows="2">' + (data.description ? escapeHtml(data.description) : '') + '</textarea>' +
+      charCounterHtml(data.description ? data.description.length : 0, DESC_MAX_LENGTH) + '</td>' +
       '<td><input type="text" class="invoice-input" placeholder="Invoice/Ref no." value="' + (data.invoice ? escapeHtml(data.invoice) : '') + '"></td>' +
       '<td class="amount-cell"><input type="text" inputmode="decimal" class="amount-input" placeholder="0.00" value="' + (data.amount ? formatAmount(data.amount) : '') + '"></td>' +
       '<td class="remove-cell"><button type="button" class="row-remove" title="Remove row"><i class="fa-solid fa-trash"></i></button></td>';
@@ -1930,7 +1936,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
   lineItemsBody.addEventListener('input', function(e){
     if (e.target.classList.contains('desc-input')){
       var counter = e.target.nextElementSibling;
-      if (counter && counter.classList.contains('char-count')) counter.outerHTML = descCounterHtml(e.target.value.length);
+      if (counter && counter.classList.contains('char-count')) counter.outerHTML = charCounterHtml(e.target.value.length, DESC_MAX_LENGTH);
     }
     recalc();
   });
@@ -2354,6 +2360,15 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       }
     });
     if (invoiceMissing) errors.push('Invoice number is required for every payment line item.');
+
+    // maxlength only blocks typing - text pre-filled by Copy From An Existing Request or
+    // Edit & Resubmit (saved under the old 200-character limit) can still be longer.
+    var descTooLong = false;
+    rows.forEach(function(tr){
+      var descEl = tr.querySelector('.desc-input');
+      if (descEl.value.length > DESC_MAX_LENGTH){ descEl.classList.add('invalid'); descTooLong = true; }
+    });
+    if (descTooLong) errors.push('Payment description must not exceed ' + DESC_MAX_LENGTH + ' characters.');
 
     if (!files.length) errors.push('At least one attachment is required.');
     dropzone.classList.toggle('invalid', !files.length);
@@ -3158,9 +3173,15 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
 
   // Item description as shown on the Reimbursement page and written to the Excel export:
   // "<description> [EVID: <invoice no>]". Left as-is when the item has no invoice number.
+  // Never longer than EXPORT_DESC_MAX_LENGTH: the end of the description is trimmed to make
+  // room, so the EVID always survives intact.
   function descriptionWithEvid(description, invoice){
     var invoiceNo = String(invoice || '').trim();
-    return (description || '') + (invoiceNo ? ' [EVID: ' + invoiceNo + ']' : '');
+    var suffix = invoiceNo ? ' [EVID: ' + invoiceNo + ']' : '';
+    var desc = String(description || '');
+    var room = Math.max(0, EXPORT_DESC_MAX_LENGTH - suffix.length);
+    if (desc.length > room) desc = desc.slice(0, room).replace(/\s+$/, '');
+    return (desc + suffix).slice(0, EXPORT_DESC_MAX_LENGTH);
   }
 
   function selectedReimbursementRows(){

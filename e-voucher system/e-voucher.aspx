@@ -52,7 +52,7 @@
   // Browsers/SharePoint can keep serving an old cached copy of this page after a
   // re-upload; this quietly re-fetches the page in the background (bypassing the
   // HTTP cache) and force-reloads once if the server's copy has a newer version.
-  window.__EVOUCHER_VERSION__ = '2026.11.28.2';
+  window.__EVOUCHER_VERSION__ = '2026.11.28.6';
   (function(){
     // Never do this during a sign-in redirect round trip - its response (code/state/
     // session_state) lives in the query string or hash of THIS exact page load, and a
@@ -1871,10 +1871,10 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     return n.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
-  // The Reimbursement export writes "<description> [EVID: <invoice/ref no>]" and must stay
-  // within EXPORT_DESC_MAX_LENGTH (2026-11-28). Description is capped at 185; Invoice/Ref No.
-  // (the EVID) has no limit, so when description + " [EVID: ...]" runs over 200,
-  // descriptionWithEvid trims the end of the description to fit (option agreed with the business).
+  // The Reimbursement list and export show "[VID:<Master ID>] <description>" and must stay
+  // within EXPORT_DESC_MAX_LENGTH (2026-11-28). Description is capped at 185; if the VID
+  // prefix ever pushes it over 200, descriptionWithVid trims the end of the description to
+  // fit (option agreed with the business).
   var DESC_MAX_LENGTH = 185;
   var EXPORT_DESC_MAX_LENGTH = 200;
 
@@ -3171,17 +3171,16 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
     return haystack.indexOf(reimbursementSearchQuery) !== -1;
   }
 
-  // Item description as shown on the Reimbursement page and written to the Excel export:
-  // "<description> [EVID: <invoice no>]". Left as-is when the item has no invoice number.
-  // Never longer than EXPORT_DESC_MAX_LENGTH: the end of the description is trimmed to make
-  // room, so the EVID always survives intact.
-  function descriptionWithEvid(description, invoice){
-    var invoiceNo = String(invoice || '').trim();
-    var suffix = invoiceNo ? ' [EVID: ' + invoiceNo + ']' : '';
+  // Item description as shown in the Reimbursement list and Process popup and written to the
+  // Excel export: "[VID:<Master ID>] <description>" (2026-11-28). Never longer than
+  // EXPORT_DESC_MAX_LENGTH: the end of the description is trimmed if needed, so the VID always
+  // survives intact.
+  function descriptionWithVid(description, masterId){
+    var prefix = '[VID:' + masterId + '] ';
     var desc = String(description || '');
-    var room = Math.max(0, EXPORT_DESC_MAX_LENGTH - suffix.length);
+    var room = Math.max(0, EXPORT_DESC_MAX_LENGTH - prefix.length);
     if (desc.length > room) desc = desc.slice(0, room).replace(/\s+$/, '');
-    return (desc + suffix).slice(0, EXPORT_DESC_MAX_LENGTH);
+    return (prefix + desc).slice(0, EXPORT_DESC_MAX_LENGTH);
   }
 
   function selectedReimbursementRows(){
@@ -3197,7 +3196,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
       '<td data-label="ID"><span class="ref-chip">' + escapeHtml(reqItem.ref) + '</span></td>' +
       '<td data-label="Type"><span class="type-pill ' + escapeHtml(reqItem.type) + '">' + escapeHtml(TYPE_LABELS[reqItem.type] || reqItem.type) + '</span></td>' +
       '<td data-label="Matter No">' + escapeHtml(matterNo) + '</td>' +
-      '<td data-label="Item Description">' + escapeHtml(descriptionWithEvid(item.description, item.invoice) || '-') + '</td>' +
+      '<td data-label="Item Description">' + escapeHtml(descriptionWithVid(item.description, reqItem.ref) || '-') + '</td>' +
       '<td data-label="Payee">' + escapeHtml(reqItem.payee) + '</td>' +
       '<td data-label="Date">' + dateTimeLinesHtml(reqItem.date) + '</td>' +
       '<td data-label="Amount">' + escapeHtml(reqItem.currency) + ' ' + formatMoney(item.amount) + '</td>' +
@@ -3296,7 +3295,7 @@ window.eVoucherSignInHandlers = window.eVoucherSignInHandlers || [];
         description: row.item.description || '',
         // Shown in the popup and written to the Excel file; description above stays the raw
         // text for SharePoint error messages.
-        exportDescription: descriptionWithEvid(row.item.description, row.item.invoice),
+        exportDescription: descriptionWithVid(row.item.description, reqItem.ref),
         amount: amount,
         currency: reqItem.currency,
         isMyr: isMyr,
